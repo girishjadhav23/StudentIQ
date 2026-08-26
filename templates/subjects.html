@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subjects - StudentIQ</title>
+</head>
+<body>
+
+    <h1>Your Subjects</h1>
+
+    <p>
+        <a href="{{ url_for('subjects.add_subject') }}">Add a subject</a>
+        |
+        <a href="{{ url_for('dashboard.dashboard_home') }}">Dashboard</a>
+    </p>
+
+    {% if subjects %}
+        <ul>
+            {% for subject in subjects %}
+                <li>
+                    {{ subject.name }}
+                    {% if subject.code %}({{ subject.code }}){% endif %}
+                    —
+                    <a href="{{ url_for('subjects.edit_subject', subject_id=subject.id) }}">Edit</a>
+                    <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>You have not added any subjects yet.</p>
+    {% endif %}
+
+</body>
+</html>
