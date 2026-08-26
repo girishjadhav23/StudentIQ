@@ -3,9 +3,11 @@ from config import Config
 from extensions import db, login_manager
 from models.user import User
 from models.subject import Subject
+from models.attendance import Attendance
 from routes.auth import auth
 from routes.dashboard import dashboard
 from routes.subjects import subjects
+from routes.attendance import attendance
 
 def create_app():
     app = Flask(__name__)
@@ -17,6 +19,7 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(dashboard)
     app.register_blueprint(subjects)
+    app.register_blueprint(attendance)
 
     @login_manager.user_loader
     def load_user(user_id):

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance - {{ subject.name }}</title>
+</head>
+<body>
+
+    <h1>Attendance: {{ subject.name }} {% if subject.code %}({{ subject.code }}){% endif %}</h1>
+
+    <p>
+        <a href="{{ url_for('attendance.add_attendance', subject_id=subject.id) }}">Add Attendance</a>
+        |
+        <a href="{{ url_for('subjects.list_subjects') }}">Back to Subjects</a>
+    </p>
+
+    <h2>Summary</h2>
+    <p>Total Classes: {{ stats.total_classes }}</p>
+    <p>Present: {{ stats.present_classes }}</p>
+    <p>Absent: {{ stats.absent_classes }}</p>
+    <p>Attendance: {{ stats.percentage }}%</p>
+
+    <h2>Attendance Log</h2>
+
+    {% if stats.attendances %}
+        <table border="1" cellpadding="5" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in stats.attendances %}
+                    <tr>
+                        <td>{{ record.date }}</td>
+                        <td>{{ record.status }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('attendance.delete_attendance', subject_id=subject.id, attendance_id=record.id) }}" style="display:inline;">
+                                <button type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No attendance records logged for this subject yet.</p>
+    {% endif %}
+
+</body>
+</html>

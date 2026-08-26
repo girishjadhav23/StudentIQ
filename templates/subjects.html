@@ -23,7 +23,9 @@
                     {% if subject.code %}({{ subject.code }}){% endif %}
                     —
                     <a href="{{ url_for('subjects.edit_subject', subject_id=subject.id) }}">Edit</a>
-                    <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
+                    |
+                    <a href="{{ url_for('attendance.view_attendance', subject_id=subject.id) }}">Attendance</a>
+                    — <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
                         <button type="submit">Delete</button>
                     </form>
                 </li>
