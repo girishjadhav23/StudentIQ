@@ -32,7 +32,8 @@ def register():
         user = User(
             name=name,
             email=email,
-            password_hash=password_hash
+            password_hash=password_hash,
+            role="student",
         )
 
         db.session.add(user)

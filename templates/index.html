@@ -8,5 +8,11 @@
 <body>
     <h1>Welcome to StudentIQ</h1>
     <p>Your AI-powered student academic assistant.</p>
+
+    <p>
+        <a href="{{ url_for('auth.login') }}">Login</a>
+        |
+        <a href="{{ url_for('auth.register') }}">Register</a>
+    </p>
 </body>
 </html>
