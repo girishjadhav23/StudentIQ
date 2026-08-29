@@ -1,4 +1,5 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect, url_for
+from flask_login import current_user
 import click
 from werkzeug.security import generate_password_hash
 from config import Config
@@ -33,6 +34,16 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(User, int(user_id))
+
+    @app.before_request
+    def check_mandatory_password_change():
+        if current_user.is_authenticated and getattr(current_user, "must_change_password", False):
+            allowed_endpoints = {"auth.setup_password", "auth.logout", "static"}
+            if request.endpoint:
+                if request.endpoint not in allowed_endpoints and not request.path.startswith("/static"):
+                    return redirect(url_for("auth.setup_password"))
+            elif not request.path.startswith("/static"):
+                return redirect(url_for("auth.setup_password"))
 
     @app.errorhandler(403)
     def forbidden_error(error):

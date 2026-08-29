@@ -14,10 +14,12 @@
 <div class="card">
     <h2>⚡ Academic Administration &amp; Provisioning</h2>
     <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
-        Manage faculty members, academic departments, and institutional settings.
+        Manage academic departments, faculty provisioning, and institutional configuration.
     </p>
     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-primary">➕ Add Faculty Member</a>
+        <a href="{{ url_for('admin.departments') }}" class="btn btn-primary">🏛️ Manage Departments</a>
+        <a href="{{ url_for('admin.add_department') }}" class="btn btn-secondary">➕ Add Department</a>
+        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-teacher">➕ Add Faculty Member</a>
     </div>
 </div>
 

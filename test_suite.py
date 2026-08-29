@@ -144,7 +144,7 @@ class TestStudentIQ(unittest.TestCase):
             uid = user.id
 
         self.client.post("/login", data={"email": "o@vvp.edu", "password": "pass"})
-        
+
         # Add subject
         add_resp = self.client.post("/subjects/add", data={"name": "Data Structures", "code": "DS-301"}, follow_redirects=True)
         self.assertEqual(add_resp.status_code, 200)
@@ -795,6 +795,464 @@ class TestStudentIQ(unittest.TestCase):
             self.assertTrue(user.is_student)
             self.assertFalse(user.is_admin)
             self.assertFalse(user.is_teacher)
+
+    # =========================================================================
+    # PHASE 3.5 TESTS: Department Management CRUD (/admin/departments)
+    # =========================================================================
+
+    def test_53_unauthenticated_department_access_redirects(self):
+        endpoints = [
+            ("/admin/departments", "GET"),
+            ("/admin/departments/add", "GET"),
+            ("/admin/departments/add", "POST"),
+            ("/admin/departments/1/edit", "GET"),
+            ("/admin/departments/1/delete", "POST"),
+        ]
+        for url, method in endpoints:
+            if method == "GET":
+                resp = self.client.get(url, follow_redirects=False)
+            else:
+                resp = self.client.post(url, follow_redirects=False)
+            self.assertEqual(resp.status_code, 302, f"Failed for {method} {url}")
+            self.assertIn("/login", resp.location)
+
+    def test_54_student_and_teacher_cannot_access_department_crud_403(self):
+        with self.app.app_context():
+            student = User(name="Student Dept", email="s_dept@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            teacher = User(name="Teacher Dept", email="t_dept@vvp.edu", password_hash=generate_password_hash("pass"), role="teacher")
+            db.session.add_all([student, teacher])
+            db.session.commit()
+
+        # Student attempt
+        self.client.post("/login", data={"email": "s_dept@vvp.edu", "password": "pass"})
+        resp = self.client.get("/admin/departments")
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.post("/admin/departments/add", data={"name": "X", "code": "X"})
+        self.assertEqual(resp.status_code, 403)
+        self.client.get("/logout")
+
+        # Teacher attempt
+        self.client.post("/login", data={"email": "t_dept@vvp.edu", "password": "pass"})
+        resp = self.client.get("/admin/departments")
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.post("/admin/departments/add", data={"name": "X", "code": "X"})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_55_admin_list_departments_empty_and_populated(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept", email="adm_dept@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_dept@vvp.edu", "password": "pass"})
+
+        # Empty list
+        resp = self.client.get("/admin/departments")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"No Departments Found", resp.data)
+
+        # Populated list
+        with self.app.app_context():
+            dept = Department(name="Computer Engineering", code="CO")
+            db.session.add(dept)
+            db.session.commit()
+
+        resp = self.client.get("/admin/departments")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Computer Engineering", resp.data)
+        self.assertIn(b"CO", resp.data)
+
+    def test_56_admin_add_department_success_and_normalization(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept Add", email="adm_add@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_add@vvp.edu", "password": "pass"})
+
+        # GET add form
+        get_resp = self.client.get("/admin/departments/add")
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertIn(b"Add Academic Department", get_resp.data)
+
+        # POST add with leading/trailing spaces and lowercase code
+        post_resp = self.client.post(
+            "/admin/departments/add",
+            data={"name": "  Civil Engineering  ", "code": "  ce  "},
+            follow_redirects=True,
+        )
+        self.assertEqual(post_resp.status_code, 200)
+        self.assertIn(b"created successfully", post_resp.data)
+        self.assertIn(b"Civil Engineering", post_resp.data)
+        self.assertIn(b"CE", post_resp.data)
+
+        with self.app.app_context():
+            dept = Department.query.filter_by(code="CE").first()
+            self.assertIsNotNone(dept)
+            self.assertEqual(dept.name, "Civil Engineering")
+            self.assertEqual(dept.code, "CE")
+
+    def test_57_admin_add_department_duplicate_name_and_code_rejected(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept Dup", email="adm_dup_d@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Mechanical Engineering", code="ME")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_dup_d@vvp.edu", "password": "pass"})
+
+        # Duplicate name (case-insensitive)
+        resp = self.client.post("/admin/departments/add", data={"name": "mechanical engineering", "code": "M2"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+        # Duplicate code (case-insensitive)
+        resp = self.client.post("/admin/departments/add", data={"name": "New Mechanical", "code": "me"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+    def test_58_admin_add_department_missing_fields_rejected(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept Req", email="adm_req@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_req@vvp.edu", "password": "pass"})
+
+        # Missing name
+        resp = self.client.post("/admin/departments/add", data={"name": "", "code": "EE"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"required", resp.data)
+
+        # Missing code
+        resp = self.client.post("/admin/departments/add", data={"name": "Electrical", "code": ""})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"required", resp.data)
+
+    def test_59_admin_edit_department_lifecycle(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept Edit", email="adm_edit@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            d1 = Department(name="Electronics", code="ET")
+            d2 = Department(name="Information Tech", code="IT")
+            db.session.add_all([admin, d1, d2])
+            db.session.commit()
+            d1_id = d1.id
+
+        self.client.post("/login", data={"email": "adm_edit@vvp.edu", "password": "pass"})
+
+        # GET edit form
+        resp = self.client.get(f"/admin/departments/{d1_id}/edit")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Edit Department", resp.data)
+        self.assertIn(b"Electronics", resp.data)
+
+        # POST valid edit
+        resp = self.client.post(
+            f"/admin/departments/{d1_id}/edit",
+            data={"name": "Electronics & Telecom", "code": "EXTC"},
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"updated successfully", resp.data)
+
+        with self.app.app_context():
+            updated = db.session.get(Department, d1_id)
+            self.assertEqual(updated.name, "Electronics & Telecom")
+            self.assertEqual(updated.code, "EXTC")
+
+        # Duplicate name of another dept
+        resp = self.client.post(f"/admin/departments/{d1_id}/edit", data={"name": "Information Tech", "code": "EXTC"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+        # Duplicate code of another dept
+        resp = self.client.post(f"/admin/departments/{d1_id}/edit", data={"name": "Electronics & Telecom", "code": "it"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+        # 404 for non-existent dept
+        resp = self.client.get("/admin/departments/99999/edit")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_60_admin_delete_department_safe_deletion_protection(self):
+        with self.app.app_context():
+            admin = User(name="Admin Dept Del", email="adm_del@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            d_clean = Department(name="Clean Dept", code="CD")
+            d_busy = Department(name="Busy Dept", code="BD")
+            db.session.add_all([admin, d_clean, d_busy])
+            db.session.commit()
+
+            # Link a teacher to d_busy
+            t_user = User(name="Teacher Busy", email="t_busy@vvp.edu", password_hash=generate_password_hash("pass"), role="teacher")
+            db.session.add(t_user)
+            db.session.commit()
+            t_prof = TeacherProfile(user_id=t_user.id, employee_id="EMP-BUSY", department_id=d_busy.id)
+            db.session.add(t_prof)
+            db.session.commit()
+
+            clean_id = d_clean.id
+            busy_id = d_busy.id
+
+        self.client.post("/login", data={"email": "adm_del@vvp.edu", "password": "pass"})
+
+        # Delete busy department -> blocked by safe deletion check
+        resp = self.client.post(f"/admin/departments/{busy_id}/delete", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Cannot delete department", resp.data)
+        with self.app.app_context():
+            self.assertIsNotNone(db.session.get(Department, busy_id))
+
+        # Delete clean department -> succeeds
+        resp = self.client.post(f"/admin/departments/{clean_id}/delete", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"deleted successfully", resp.data)
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(Department, clean_id))
+
+        # 404 for non-existent dept
+        resp = self.client.post("/admin/departments/99999/delete")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_61_add_department_populates_add_faculty_dropdown(self):
+        with self.app.app_context():
+            admin = User(name="Admin Pop", email="adm_pop@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_pop@vvp.edu", "password": "pass"})
+
+        # Create department via admin route
+        self.client.post("/admin/departments/add", data={"name": "Applied Science", "code": "AS"}, follow_redirects=True)
+
+        # GET /admin/add-faculty should now have Applied Science option in select
+    # =========================================================================
+    # PHASE 4 TESTS: Mandatory First-Login Password Change (/setup-password)
+    # =========================================================================
+
+    def test_62_unauthenticated_setup_password_redirects_to_login(self):
+        get_resp = self.client.get("/setup-password", follow_redirects=False)
+        self.assertEqual(get_resp.status_code, 302)
+        self.assertIn("/login", get_resp.location)
+
+        post_resp = self.client.post("/setup-password", data={"password": "Pass", "confirm_password": "Pass"}, follow_redirects=False)
+        self.assertEqual(post_resp.status_code, 302)
+        self.assertIn("/login", post_resp.location)
+
+    def test_63_authenticated_user_without_mandatory_change_redirects_away(self):
+        # Student with must_change_password=False
+        with self.app.app_context():
+            student = User(name="Normal Student", email="norm_s@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            admin = User(name="Normal Admin", email="norm_a@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add_all([student, admin])
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "norm_s@vvp.edu", "password": "pass"})
+        resp = self.client.get("/setup-password", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.location.endswith("/dashboard"))
+        self.client.get("/logout")
+
+        self.client.post("/login", data={"email": "norm_a@vvp.edu", "password": "pass"})
+        resp = self.client.get("/setup-password", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.location.endswith("/admin/dashboard"))
+
+    def test_64_teacher_with_must_change_password_redirected_on_login(self):
+        with self.app.app_context():
+            teacher = User(
+                name="New Teacher",
+                email="new_t@vvp.edu",
+                password_hash=generate_password_hash("TempPass123"),
+                role="teacher",
+                must_change_password=True,
+            )
+            db.session.add(teacher)
+            db.session.commit()
+
+        login_resp = self.client.post("/login", data={"email": "new_t@vvp.edu", "password": "TempPass123"}, follow_redirects=False)
+        self.assertEqual(login_resp.status_code, 302)
+        self.assertTrue(login_resp.location.endswith("/setup-password"))
+
+    def test_65_teacher_cannot_bypass_setup_password_page(self):
+        with self.app.app_context():
+            teacher = User(
+                name="Bypass Teacher",
+                email="bypass_t@vvp.edu",
+                password_hash=generate_password_hash("TempPass123"),
+                role="teacher",
+                must_change_password=True,
+            )
+            db.session.add(teacher)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "bypass_t@vvp.edu", "password": "TempPass123"})
+
+        # Direct access to dashboard is intercepted
+        resp = self.client.get("/dashboard", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.location.endswith("/setup-password"))
+
+        # Direct access to subjects is intercepted
+        resp = self.client.get("/subjects", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.location.endswith("/setup-password"))
+
+        # Access to setup-password returns 200
+        resp = self.client.get("/setup-password")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Set Permanent Password", resp.data)
+        self.assertIn(b"Bypass Teacher", resp.data)
+
+    def test_66_setup_password_validation_rejections(self):
+        with self.app.app_context():
+            teacher = User(
+                name="Val Teacher",
+                email="val_t@vvp.edu",
+                password_hash=generate_password_hash("TempSecret123"),
+                role="teacher",
+                must_change_password=True,
+            )
+            db.session.add(teacher)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "val_t@vvp.edu", "password": "TempSecret123"})
+
+        # Missing fields
+        resp = self.client.post("/setup-password", data={"password": "", "confirm_password": ""})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields are required", resp.data)
+
+        # Minimum length (< 6 chars)
+        resp = self.client.post("/setup-password", data={"password": "12345", "confirm_password": "12345"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"at least 6 characters", resp.data)
+
+        # Password mismatch
+        resp = self.client.post("/setup-password", data={"password": "NewSecret123", "confirm_password": "WrongSecret123"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Passwords do not match", resp.data)
+
+        # Same as temporary password
+        resp = self.client.post("/setup-password", data={"password": "TempSecret123", "confirm_password": "TempSecret123"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"cannot be the same as the temporary password", resp.data)
+
+    def test_67_successful_password_setup_lifecycle(self):
+        with self.app.app_context():
+            teacher = User(
+                name="Active Teacher",
+                email="active_t@vvp.edu",
+                password_hash=generate_password_hash("TempSecret123"),
+                role="teacher",
+                must_change_password=True,
+            )
+            db.session.add(teacher)
+            db.session.commit()
+            uid = teacher.id
+
+        # Login with temp pass
+        self.client.post("/login", data={"email": "active_t@vvp.edu", "password": "TempSecret123"})
+
+        # Submit valid new password
+        post_resp = self.client.post(
+            "/setup-password",
+            data={"password": "NewPermPass@123", "confirm_password": "NewPermPass@123"},
+            follow_redirects=False,
+        )
+        self.assertEqual(post_resp.status_code, 302)
+        self.assertTrue(post_resp.location.endswith("/dashboard"))
+
+        # Verify DB state
+        with self.app.app_context():
+            updated_user = db.session.get(User, uid)
+            self.assertFalse(updated_user.must_change_password)
+            self.assertTrue(check_password_hash(updated_user.password_hash, "NewPermPass@123"))
+
+        # Can now access dashboard
+        dash_resp = self.client.get("/dashboard")
+        self.assertEqual(dash_resp.status_code, 200)
+        self.assertIn(b"Welcome, Active Teacher!", dash_resp.data)
+
+        # Logout
+        self.client.get("/logout")
+
+        # Old temp password no longer works
+        old_login = self.client.post("/login", data={"email": "active_t@vvp.edu", "password": "TempSecret123"})
+        self.assertEqual(old_login.status_code, 401)
+
+        # New password works and takes user directly to dashboard (no setup redirect)
+        new_login = self.client.post("/login", data={"email": "active_t@vvp.edu", "password": "NewPermPass@123"}, follow_redirects=False)
+        self.assertEqual(new_login.status_code, 302)
+        self.assertTrue(new_login.location.endswith("/dashboard"))
+
+    def test_68_end_to_end_admin_provision_to_teacher_activation(self):
+        with self.app.app_context():
+            admin = User(name="Admin E2E", email="adm_e2e@vvp.edu", password_hash=generate_password_hash("AdminPass123"), role="admin")
+            dept = Department(name="Computer Tech", code="CT")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+            dept_id = dept.id
+
+        # 1. Admin logs in and provisions faculty
+        self.client.post("/login", data={"email": "adm_e2e@vvp.edu", "password": "AdminPass123"})
+        prov_resp = self.client.post(
+            "/admin/add-faculty",
+            data={
+                "name": "Prof. Anjali Sharma",
+                "email": "anjali@vvp.edu",
+                "employee_id": "EMP-CT-01",
+                "department_id": str(dept_id),
+            },
+        )
+        self.assertEqual(prov_resp.status_code, 200)
+
+        # Extract generated temp password
+        import re
+        html = prov_resp.data.decode("utf-8")
+        match = re.search(r"<code[^>]*>([A-Za-z0-9_-]+)</code>", html)
+        self.assertIsNotNone(match)
+        temp_pw = match.group(1)
+
+        self.client.get("/logout")
+
+        # 2. Teacher logs in with temp password
+        t_login = self.client.post("/login", data={"email": "anjali@vvp.edu", "password": temp_pw}, follow_redirects=False)
+        self.assertEqual(t_login.status_code, 302)
+        self.assertTrue(t_login.location.endswith("/setup-password"))
+
+        # 3. Teacher sets permanent password
+        setup_resp = self.client.post(
+            "/setup-password",
+            data={"password": "MySecretPass@2026", "confirm_password": "MySecretPass@2026"},
+            follow_redirects=True,
+        )
+        self.assertEqual(setup_resp.status_code, 200)
+        self.assertIn(b"Welcome, Prof. Anjali Sharma!", setup_resp.data)
+
+        # 4. Confirm DB state
+        with self.app.app_context():
+            fac = User.query.filter_by(email="anjali@vvp.edu").first()
+            self.assertFalse(fac.must_change_password)
+            self.assertEqual(fac.role, "teacher")
+            self.assertEqual(fac.teacher_profile.employee_id, "EMP-CT-01")
+
+    def test_69_student_and_admin_logins_unaffected(self):
+        with self.app.app_context():
+            student = User(name="Regular Student", email="reg_s@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            admin = User(name="Regular Admin", email="reg_a@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            db.session.add_all([student, admin])
+            db.session.commit()
+
+        # Student login -> direct to dashboard
+        s_resp = self.client.post("/login", data={"email": "reg_s@vvp.edu", "password": "pass"}, follow_redirects=False)
+        self.assertEqual(s_resp.status_code, 302)
+        self.assertTrue(s_resp.location.endswith("/dashboard"))
+        self.client.get("/logout")
+
+        # Admin login -> direct to admin dashboard
+        a_resp = self.client.post("/login", data={"email": "reg_a@vvp.edu", "password": "pass"}, follow_redirects=False)
+        self.assertEqual(a_resp.status_code, 302)
+        self.assertTrue(a_resp.location.endswith("/admin/dashboard"))
 
 
 if __name__ == "__main__":

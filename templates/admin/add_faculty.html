@@ -109,7 +109,9 @@
                 {% endfor %}
             </select>
             {% if not departments %}
-            <div class="form-hint" style="color: #dc2626;">No departments found. Please ensure departments exist before adding faculty.</div>
+            <div class="form-hint" style="color: #dc2626; margin-top: 6px;">
+                No departments found. Please <a href="{{ url_for('admin.add_department') }}" style="color: #2563eb; font-weight: 600; text-decoration: underline;">create a department first</a> before adding faculty.
+            </div>
             {% endif %}
         </div>
 

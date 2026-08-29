@@ -10,6 +10,8 @@ auth = Blueprint("auth", __name__)
 @auth.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
+        if getattr(current_user, "must_change_password", False):
+            return redirect(url_for("auth.setup_password"))
         if current_user.is_admin:
             return redirect(url_for("admin.dashboard"))
         return redirect(url_for("dashboard.dashboard_home"))
@@ -50,6 +52,8 @@ def register():
 @auth.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
+        if getattr(current_user, "must_change_password", False):
+            return redirect(url_for("auth.setup_password"))
         if current_user.is_admin:
             return redirect(url_for("admin.dashboard"))
         return redirect(url_for("dashboard.dashboard_home"))
@@ -62,6 +66,10 @@ def login():
 
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
+            if getattr(user, "must_change_password", False):
+                flash("Please establish your permanent password to activate your account.", "info")
+                return redirect(url_for("auth.setup_password"))
+
             flash(f"Welcome back, {user.name}!", "success")
             if user.is_admin:
                 return redirect(url_for("admin.dashboard"))
@@ -71,6 +79,46 @@ def login():
         return render_template("login.html"), 401
 
     return render_template("login.html")
+
+
+@auth.route("/setup-password", methods=["GET", "POST"])
+@login_required
+def setup_password():
+    if not getattr(current_user, "must_change_password", False):
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
+        return redirect(url_for("dashboard.dashboard_home"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if not password or not confirm_password:
+            flash("All fields are required.", "error")
+            return render_template("setup_password.html"), 400
+
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.", "error")
+            return render_template("setup_password.html"), 400
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "error")
+            return render_template("setup_password.html"), 400
+
+        if check_password_hash(current_user.password_hash, password):
+            flash("New password cannot be the same as the temporary password.", "error")
+            return render_template("setup_password.html"), 400
+
+        current_user.password_hash = generate_password_hash(password)
+        current_user.must_change_password = False
+        db.session.commit()
+
+        flash("Password setup successful! Your account is now fully active.", "success")
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
+        return redirect(url_for("dashboard.dashboard_home"))
+
+    return render_template("setup_password.html")
 
 
 @auth.route("/logout")

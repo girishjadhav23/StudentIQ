@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Department - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>➕ Add Academic Department</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Define a new department and institutional branch code
+    </p>
+</div>
+
+<div class="card" style="max-width: 550px;">
+    <h2>Department Information</h2>
+    <p style="color: #64748b; font-size: 13px; margin-bottom: 20px;">
+        Departments represent academic branches (e.g. Computer, Mechanical, Civil) and structure faculty assignments.
+    </p>
+
+    {% if error %}
+    <p class="error-text">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.add_department') }}">
+        <div class="form-group">
+            <label for="name">Department Name *</label>
+            <input type="text" id="name" name="name" placeholder="e.g. Computer Engineering" value="{{ form_data.get('name', '') }}" required autofocus>
+            <div class="form-hint">Official title of the academic department.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="code">Department Code / Short Form *</label>
+            <input type="text" id="code" name="code" placeholder="e.g. CO, CE, ME, IT" value="{{ form_data.get('code', '') }}" required style="text-transform: uppercase;">
+            <div class="form-hint">Unique short code used in section naming and subject codes.</div>
+        </div>
+
+        <div style="margin-top: 24px; display: flex; gap: 12px; align-items: center;">
+            <button type="submit" class="btn btn-primary">Create Department</button>
+            <a href="{{ url_for('admin.departments') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

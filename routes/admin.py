@@ -28,7 +28,14 @@ def admin_required(f):
 @admin.route("/dashboard")
 @admin_required
 def dashboard():
-    return render_template("admin/dashboard.html", user=current_user)
+    dept_count = Department.query.count()
+    faculty_count = TeacherProfile.query.count()
+    return render_template(
+        "admin/dashboard.html",
+        user=current_user,
+        dept_count=dept_count,
+        faculty_count=faculty_count,
+    )
 
 
 @admin.route("/")
@@ -36,6 +43,127 @@ def dashboard():
 def index():
     return redirect(url_for("admin.dashboard"))
 
+
+# =========================================================================
+# DEPARTMENT MANAGEMENT
+# =========================================================================
+
+@admin.route("/departments")
+@admin_required
+def departments():
+    dept_list = Department.query.order_by(Department.name.asc()).all()
+    return render_template("admin/departments.html", departments=dept_list)
+
+
+@admin.route("/departments/add", methods=["GET", "POST"])
+@admin_required
+def add_department():
+    error = None
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        code = request.form.get("code", "").strip().upper()
+
+        if not name or not code:
+            error = "Both department name and code are required."
+            flash(error, "error")
+            return render_template("admin/add_department.html", error=error, form_data=request.form), 400
+
+        # Check duplicate name (case-insensitive)
+        if Department.query.filter(db.func.lower(Department.name) == name.lower()).first():
+            error = f"A department with name '{name}' already exists."
+            flash(error, "error")
+            return render_template("admin/add_department.html", error=error, form_data=request.form), 400
+
+        # Check duplicate code (case-insensitive)
+        if Department.query.filter(db.func.upper(Department.code) == code.upper()).first():
+            error = f"A department with code '{code}' already exists."
+            flash(error, "error")
+            return render_template("admin/add_department.html", error=error, form_data=request.form), 400
+
+        dept = Department(name=name, code=code)
+        db.session.add(dept)
+        db.session.commit()
+        flash(f"Department '{dept.name} ({dept.code})' created successfully!", "success")
+        return redirect(url_for("admin.departments"))
+
+    return render_template("admin/add_department.html", error=error, form_data={})
+
+
+@admin.route("/departments/<int:dept_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_department(dept_id):
+    dept = db.session.get(Department, dept_id)
+    if not dept:
+        abort(404)
+
+    error = None
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        code = request.form.get("code", "").strip().upper()
+
+        if not name or not code:
+            error = "Both department name and code are required."
+            flash(error, "error")
+            return render_template("admin/edit_department.html", department=dept, error=error, form_data=request.form), 400
+
+        # Check duplicate name excluding self
+        if Department.query.filter(db.func.lower(Department.name) == name.lower(), Department.id != dept.id).first():
+            error = f"A department with name '{name}' already exists."
+            flash(error, "error")
+            return render_template("admin/edit_department.html", department=dept, error=error, form_data=request.form), 400
+
+        # Check duplicate code excluding self
+        if Department.query.filter(db.func.upper(Department.code) == code.upper(), Department.id != dept.id).first():
+            error = f"A department with code '{code}' already exists."
+            flash(error, "error")
+            return render_template("admin/edit_department.html", department=dept, error=error, form_data=request.form), 400
+
+        dept.name = name
+        dept.code = code
+        db.session.commit()
+        flash(f"Department '{dept.name} ({dept.code})' updated successfully!", "success")
+        return redirect(url_for("admin.departments"))
+
+    return render_template("admin/edit_department.html", department=dept, error=error, form_data={"name": dept.name, "code": dept.code})
+
+
+@admin.route("/departments/<int:dept_id>/delete", methods=["POST"])
+@admin_required
+def delete_department(dept_id):
+    dept = db.session.get(Department, dept_id)
+    if not dept:
+        abort(404)
+
+    # Safe deletion checks
+    faculty_count = len(dept.teachers)
+    subject_count = len(dept.subjects)
+    section_count = len(dept.class_sections)
+    student_count = len(dept.students)
+
+    if faculty_count > 0 or subject_count > 0 or section_count > 0 or student_count > 0:
+        reasons = []
+        if faculty_count > 0:
+            reasons.append(f"{faculty_count} faculty member(s)")
+        if subject_count > 0:
+            reasons.append(f"{subject_count} subject(s)")
+        if section_count > 0:
+            reasons.append(f"{section_count} class section(s)")
+        if student_count > 0:
+            reasons.append(f"{student_count} student(s)")
+
+        flash(f"Cannot delete department '{dept.name}' because it is associated with {', '.join(reasons)}.", "error")
+        return redirect(url_for("admin.departments"))
+
+    name = dept.name
+    db.session.delete(dept)
+    db.session.commit()
+    flash(f"Department '{name}' deleted successfully.", "success")
+    return redirect(url_for("admin.departments"))
+
+
+# =========================================================================
+# FACULTY PROVISIONING
+# =========================================================================
 
 @admin.route("/add-faculty", methods=["GET", "POST"])
 @admin_required
