@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block title %}Admin Dashboard - StudentIQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Admin &amp; HOD Workspace</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Logged in as: <strong>{{ user.name }}</strong> ({{ user.email }})
+    </p>
+</div>
+
+<div class="card">
+    <h2>🛡️ Administrator Confirmation</h2>
+    <p style="color: #334155; font-size: 15px; margin-bottom: 14px;">
+        Authentication verified. You are securely authenticated as an <strong>Administrator</strong>.
+    </p>
+    <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 14px 18px; border-radius: 6px; font-size: 14px; color: #475569; line-height: 1.6;">
+        <strong>Phase 2 Admin Foundation Active:</strong>
+        <br>
+        • Role authorization &amp; protected workspace verified.
+        <br>
+        • Faculty provisioning and academic management tools will be configured in upcoming phases.
+    </div>
+</div>
+{% endblock %}

@@ -14,5 +14,11 @@ class Subject(db.Model):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    # Academic context (nullable for backward compatibility with existing data)
+    department_id = db.Column(
+        db.Integer, db.ForeignKey("department.id"), nullable=True
+    )
+    semester = db.Column(db.Integer, nullable=True)             # e.g. 5
+
     def __repr__(self):
         return f"<Subject {self.name}>"

@@ -1,39 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subjects - StudentIQ</title>
-</head>
-<body>
+{% extends "layout.html" %}
 
+{% block title %}Subjects - StudentIQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
     <h1>Your Subjects</h1>
+    <p>Manage your subjects, course codes, and attendance logs.</p>
+</div>
 
-    <p>
-        <a href="{{ url_for('subjects.add_subject') }}">Add a subject</a>
-        |
-        <a href="{{ url_for('dashboard.dashboard_home') }}">Dashboard</a>
-    </p>
+<p style="margin-bottom:20px;">
+    <a href="{{ url_for('subjects.add_subject') }}" class="btn btn-primary btn-sm">Add Subject</a>
+</p>
 
-    {% if subjects %}
-        <ul>
+{% if subjects %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Code</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
             {% for subject in subjects %}
-                <li>
-                    {{ subject.name }}
-                    {% if subject.code %}({{ subject.code }}){% endif %}
-                    —
-                    <a href="{{ url_for('subjects.edit_subject', subject_id=subject.id) }}">Edit</a>
-                    |
-                    <a href="{{ url_for('attendance.view_attendance', subject_id=subject.id) }}">Attendance</a>
-                    — <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
-                        <button type="submit">Delete</button>
+            <tr>
+                <td>{{ subject.name }}</td>
+                <td>{{ subject.code or '—' }}</td>
+                <td class="actions">
+                    <a href="{{ url_for('subjects.edit_subject', subject_id=subject.id) }}" class="btn btn-primary btn-sm">Edit</a>
+                    <a href="{{ url_for('attendance.view_attendance', subject_id=subject.id) }}" class="btn btn-primary btn-sm" style="background:#334155;">Attendance</a>
+                    <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this subject?');">Delete</button>
                     </form>
-                </li>
+                </td>
+            </tr>
             {% endfor %}
-        </ul>
-    {% else %}
-        <p>You have not added any subjects yet.</p>
-    {% endif %}
-
-</body>
-</html>
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <p>You have not added any subjects yet. Click "Add Subject" to begin.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,18 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StudentIQ</title>
-</head>
-<body>
-    <h1>Welcome to StudentIQ</h1>
-    <p>Your AI-powered student academic assistant.</p>
+{% extends "base.html" %}
 
-    <p>
-        <a href="{{ url_for('auth.login') }}">Login</a>
-        |
-        <a href="{{ url_for('auth.register') }}">Register</a>
-    </p>
-</body>
-</html>
+{% block title %}V.V.P. Polytechnic - StudentIQ Academic Portal{% endblock %}
+
+{% block body %}
+<div class="home-container">
+    <img src="{{ url_for('static', filename='logo.svg') }}" alt="V.V.P. Polytechnic Logo" class="home-logo">
+    <h1>V.V.P. Polytechnic</h1>
+    <p class="tagline">StudentIQ &bull; Comprehensive Student &amp; Faculty Academic Assistant</p>
+
+    <!-- Portals Grid -->
+    <div class="portal-cards-grid">
+        <!-- 1. Student Portal -->
+        <div class="portal-card">
+            <h3>🎓 Student Portal</h3>
+            <p>Access your subjects, track your attendance, and manage your course records.</p>
+            <div style="font-size:12px; color:#64748b; margin-bottom:12px;">Default Demo: <strong>girish@123</strong></div>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-student" style="width:100%; text-align:center;">Student Sign In</a>
+        </div>
+
+        <!-- 2. Teacher Portal -->
+        <div class="portal-card teacher-card">
+            <h3>👨‍🏫 Teacher Portal</h3>
+            <p>Authorized faculty access for academic administration and student attendance tracking.</p>
+            <div style="font-size:12px; color:#64748b; margin-bottom:12px;">Default Demo: <strong>charan@vvp.edu</strong></div>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-teacher" style="width:100%; text-align:center;">Faculty Sign In</a>
+        </div>
+
+        <!-- 3. Register New User -->
+        <div class="portal-card" style="border-top-color: #10b981;">
+            <h3>📝 Register User</h3>
+            <p>Create a new Student or Teacher account to get started with StudentIQ.</p>
+            <div style="font-size:12px; color:#64748b; margin-bottom:12px;">Role default: student</div>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="width:100%; text-align:center; background:#10b981;">Register Account</a>
+        </div>
+    </div>
+
+    <div class="card" style="text-align: left; max-width: 600px; margin: 0 auto 30px;">
+        <h2 style="font-size: 16px; margin-bottom: 12px;">⚡ Key Academic Features</h2>
+        <ul style="list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: #475569;">
+            <li>✓ Multi-role Auth (Student &amp; Faculty)</li>
+            <li>✓ Subject &amp; Code Management</li>
+            <li>✓ Teacher-only Attendance Logging</li>
+            <li>✓ Interactive Attendance Analytics</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

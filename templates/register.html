@@ -1,34 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - StudentIQ</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-    <h1>Create your StudentIQ account</h1>
+{% block title %}Register New User - V.V.P. Polytechnic StudentIQ{% endblock %}
 
-    <form method="POST">
+{% block body %}
+<div class="auth-container" style="max-width: 520px;">
+    <div class="auth-header">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="V.V.P. Polytechnic Logo" class="auth-logo">
+        <h1>Register New User</h1>
+        <p class="subtitle">V.V.P. Polytechnic &bull; Create an Account</p>
+    </div>
 
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name" required>
+    <div class="card">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
 
-        <br><br>
+        <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+            <div class="form-group">
+                <label for="name">Full Name *</label>
+                <input type="text" id="name" name="name" placeholder="e.g. Girish Sharma" required autofocus>
+            </div>
 
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required>
+            <div class="form-group">
+                <label for="email">Email Address *</label>
+                <input type="email" id="email" name="email" placeholder="e.g. girish@vvp.edu" required>
+            </div>
 
-        <br><br>
+            <div class="form-group">
+                <label for="password">Password *</label>
+                <input type="password" id="password" name="password" placeholder="Create strong password" required>
+            </div>
 
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Create Account</button>
+        </form>
 
-        <br><br>
-
-        <button type="submit">Register</button>
-
-    </form>
-
-</body>
-</html>
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #64748b;">
+            Already have an account? <a href="{{ url_for('auth.login') }}">Sign In</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

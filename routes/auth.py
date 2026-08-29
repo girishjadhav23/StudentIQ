@@ -10,6 +10,8 @@ auth = Blueprint("auth", __name__)
 @auth.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
         return redirect(url_for("dashboard.dashboard_home"))
         
     if request.method == "POST":
@@ -48,6 +50,8 @@ def register():
 @auth.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
         return redirect(url_for("dashboard.dashboard_home"))
 
     if request.method == "POST":
@@ -59,6 +63,8 @@ def login():
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
             flash(f"Welcome back, {user.name}!", "success")
+            if user.is_admin:
+                return redirect(url_for("admin.dashboard"))
             return redirect(url_for("dashboard.dashboard_home"))
 
         flash("Invalid email or password.", "error")

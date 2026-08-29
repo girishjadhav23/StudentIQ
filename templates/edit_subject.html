@@ -1,37 +1,31 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Subject - StudentIQ</title>
-</head>
-<body>
+{% extends "layout.html" %}
 
+{% block title %}Edit Subject - StudentIQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
     <h1>Edit Subject</h1>
+</div>
 
+<div class="card">
     {% if error %}
-        <p>{{ error }}</p>
+        <p class="error-text">{{ error }}</p>
     {% endif %}
 
     <form method="POST">
-
-        <label for="name">Subject name:</label>
-        <input type="text" id="name" name="name" value="{{ subject.name }}" required>
-
-        <br><br>
-
-        <label for="code">Code (optional):</label>
-        <input type="text" id="code" name="code" value="{{ subject.code or '' }}">
-
-        <br><br>
-
-        <button type="submit">Save changes</button>
-
+        <div class="form-group">
+            <label for="name">Subject Name</label>
+            <input type="text" id="name" name="name" value="{{ subject.name }}" required autofocus>
+        </div>
+        <div class="form-group">
+            <label for="code">Code (optional)</label>
+            <input type="text" id="code" name="code" value="{{ subject.code or '' }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
     </form>
 
-    <p>
-        <a href="{{ url_for('subjects.list_subjects') }}">Back to subjects</a>
+    <p style="margin-top:15px; font-size: 14px;">
+        <a href="{{ url_for('subjects.list_subjects') }}">← Back to Subjects</a>
     </p>
-
-</body>
-</html>
+</div>
+{% endblock %}

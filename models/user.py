@@ -22,5 +22,9 @@ class User(UserMixin, db.Model):
     def is_student(self):
         return self.role == "student"
 
+    @property
+    def is_admin(self):
+        return self.role == "admin"
+
     def __repr__(self):
         return f"<User {self.email} role={self.role}>"

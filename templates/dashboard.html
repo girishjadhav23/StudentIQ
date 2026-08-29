@@ -1,26 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - StudentIQ</title>
-</head>
-<body>
+{% extends "layout.html" %}
 
+{% block title %}Dashboard - StudentIQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
     <h1>Welcome, {{ user.name }}!</h1>
-
-    <p>Email: {{ user.email }}</p>
-
-    <p>You are successfully logged in to StudentIQ.</p>
-
-    <p>Subjects: {{ subject_count }}</p>
-    <p>Overall Attendance: {{ overall_attendance }}%</p>
-
     <p>
-        <a href="{{ url_for('subjects.list_subjects') }}">Subjects</a>
-        |
-        <a href="{{ url_for('auth.logout') }}">Logout</a>
+        <span class="user-role-badge role-{{ user.role }}">{{ user.role | capitalize }} Portal</span>
+        &bull; Email: <strong>{{ user.email }}</strong>
     </p>
+</div>
 
-</body>
-</html>
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="label">Subjects Enrolled</div>
+        <div class="value">{{ subject_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Overall Attendance</div>
+        <div class="value">{{ overall_attendance }}%</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Quick Actions</h2>
+    <p>
+        <a href="{{ url_for('subjects.list_subjects') }}" class="btn btn-primary btn-sm">View Subjects</a>
+        <a href="{{ url_for('subjects.add_subject') }}" class="btn btn-primary btn-sm" style="background:#334155;">Add Subject</a>
+    </p>
+</div>
+{% endblock %}

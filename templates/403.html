@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}403 Forbidden - StudentIQ{% endblock %}
+
+{% block body %}
+<div class="auth-container" style="max-width: 520px; text-align: center;">
+    <div class="auth-header">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="V.V.P. Polytechnic Logo" class="auth-logo">
+        <h1>403 - Access Forbidden</h1>
+        <p class="subtitle">Administrator Privileges Required</p>
+    </div>
+
+    <div class="card" style="text-align: center;">
+        <div style="font-size: 46px; margin-bottom: 12px;">🚫</div>
+        <h2 style="font-size: 18px; margin-bottom: 10px; color: #1e293b;">Access Denied</h2>
+        <p style="color: #64748b; font-size: 14px; margin-bottom: 20px; line-height: 1.5;">
+            You do not have permission to access the Administrator portal. This area is strictly restricted to authorized HOD / Administrator accounts.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard.dashboard_home') }}" class="btn btn-primary">Return to Dashboard</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Sign In</a>
+            {% endif %}
+            <a href="{{ url_for('home') }}" class="btn btn-primary" style="background: #475569;">Home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
