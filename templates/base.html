@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}StudentIQ - V.V.P. Polytechnic{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% block body %}{% endblock %}
+
+    <!-- GLOBAL BOTTOM TASKBAR -->
+    <footer class="bottom-taskbar">
+        <div class="taskbar-brand">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="VVP Logo" class="taskbar-logo">
+            <span>V.V.P. Polytechnic &bull; StudentIQ</span>
+        </div>
+
+        <div class="taskbar-nav">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard.dashboard_home') }}" class="taskbar-link">📊 Dashboard</a>
+                <a href="{{ url_for('subjects.list_subjects') }}" class="taskbar-link">📚 Subjects</a>
+                <a href="{{ url_for('gpa.view_gpa') }}" class="taskbar-link">🎯 GPA</a>
+                <a href="{{ url_for('tasks.list_tasks') }}" class="taskbar-link">✅ Tasks</a>
+            {% else %}
+                <a href="{{ url_for('home') }}" class="taskbar-link">🏠 Home</a>
+                <a href="{{ url_for('auth.login_student') }}" class="taskbar-link">🎓 Student Portal</a>
+                <a href="{{ url_for('auth.login_teacher') }}" class="taskbar-link">👨‍🏫 Teacher Portal</a>
+                <a href="{{ url_for('auth.register') }}" class="taskbar-link">📝 Register</a>
+            {% endif %}
+        </div>
+
+        <div class="taskbar-status">
+            <span style="display:flex; align-items:center; gap:6px;">
+                <span class="status-dot"></span> Online
+            </span>
+            {% if current_user.is_authenticated %}
+                <span>| {{ current_user.name }} (<strong>{{ current_user.role | capitalize }}</strong>)</span>
+                <a href="{{ url_for('auth.logout') }}" style="color:#ef4444; font-size:12px; margin-left:4px;">Logout</a>
+            {% endif %}
+        </div>
+    </footer>
+</body>
+</html>

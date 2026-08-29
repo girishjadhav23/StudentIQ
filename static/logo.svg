@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <!-- Gold gradient for the gear -->
+    <linearGradient id="gearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d49b40"/>
+      <stop offset="50%" stop-color="#c68a28"/>
+      <stop offset="100%" stop-color="#ab6f19"/>
+    </linearGradient>
+
+    <!-- Maroon gradient for inner ring -->
+    <radialGradient id="ringGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#7a1818"/>
+      <stop offset="100%" stop-color="#540e0e"/>
+    </radialGradient>
+
+    <!-- Blue gradient for ribbon -->
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="50%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <!-- Path for circular text: V. V. P. POLYTECHNIC -->
+    <path id="textArc" d="M 85,200 A 115,115 0 1,1 315,200" fill="none" />
+  </defs>
+
+  <!-- 1. GEAR / COG WHEEL -->
+  <g id="gear" fill="url(#gearGrad)" stroke="#8c5810" stroke-width="2">
+    <!-- 16 Teeth around the circle -->
+    <g transform="translate(200,190)">
+      <!-- Central gear disc -->
+      <circle r="145" />
+      <!-- Teeth -->
+      <rect x="-14" y="-168" width="28" height="30" rx="3"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(22.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(45)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(67.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(90)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(112.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(135)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(157.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(180)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(202.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(225)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(247.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(270)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(292.5)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(315)"/>
+      <rect x="-14" y="-168" width="28" height="30" rx="3" transform="rotate(337.5)"/>
+    </g>
+  </g>
+
+  <!-- 2. MAROON RING -->
+  <circle cx="200" cy="190" r="125" fill="url(#ringGrad)" stroke="#ffffff" stroke-width="3"/>
+
+  <!-- Red side indicator dots -->
+  <circle cx="100" cy="225" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="300" cy="225" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+
+  <!-- 3. CIRCULAR TEXT -->
+  <text font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="21" fill="#ffffff" letter-spacing="4.5">
+    <textPath href="#textArc" startOffset="50%" text-anchor="middle">
+      V. V. P. POLYTECHNIC
+    </textPath>
+  </text>
+
+  <!-- 4. INNER SKY BLUE CIRCLE -->
+  <circle cx="200" cy="190" r="82" fill="#bae6fd" stroke="#ffffff" stroke-width="2.5"/>
+
+  <!-- 5. RETRO PC MONITOR WITH "VVP" -->
+  <g id="monitor" transform="translate(200, 185)">
+    <!-- Monitor Outer Bezel (Dark Grey/Black) -->
+    <polygon points="-44,-42 44,-42 38,20 -38,20" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+
+    <!-- Monitor Inner Screen (Red) -->
+    <rect x="-30" y="-34" width="60" height="42" rx="2" fill="#dc2626" stroke="#991b1b" stroke-width="1.5" />
+
+    <!-- Screen Text "VVP" -->
+    <text x="0" y="-7" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="19" fill="#ffffff" text-anchor="middle" letter-spacing="1">VVP</text>
+
+    <!-- Monitor Stand / Base -->
+    <rect x="-10" y="20" width="20" height="8" fill="#475569" stroke="#1e293b" stroke-width="1.5"/>
+    <polygon points="-30,36 30,36 24,28 -24,28" fill="#64748b" stroke="#1e293b" stroke-width="1.5"/>
+  </g>
+
+  <!-- 6. BLUE BANNER / RIBBON AT BOTTOM -->
+  <g id="banner" transform="translate(200, 315)">
+    <!-- Banner Left & Right Fishtail Folds -->
+    <path d="M -150,-5 L -175,18 L -150,40 L -120,40 L -120,-5 Z" fill="#0369a1" stroke="#075985" stroke-width="1.5"/>
+    <path d="M 150,-5 L 175,18 L 150,40 L 120,40 L 120,-5 Z" fill="#0369a1" stroke="#075985" stroke-width="1.5"/>
+
+    <!-- Banner Main Curved Ribbon Body -->
+    <path d="M -150,5 Q 0,-30 150,5 Q 150,45 130,45 Q 0,15 -130,45 Q -150,45 -150,5 Z" fill="url(#ribbonGrad)" stroke="#ffffff" stroke-width="2"/>
+
+    <!-- Devanagari Banner Text: जयंतु तंत्रविज्ञानम् -->
+    <text x="0" y="24" font-family="'Nirmala UI', 'Mangal', 'Segoe UI', Arial, sans-serif" font-weight="bold" font-size="18" fill="#ffffff" text-anchor="middle" letter-spacing="1.5">
+      जयंतु तंत्रविज्ञानम्
+    </text>
+  </g>
+</svg>
