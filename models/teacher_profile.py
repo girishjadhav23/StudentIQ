@@ -9,7 +9,7 @@ class TeacherProfile(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False
     )
-    employee_id = db.Column(db.String(50), nullable=True)
+    employee_id = db.Column(db.String(50), unique=True, nullable=True)
     department_id = db.Column(
         db.Integer, db.ForeignKey("department.id"), nullable=True
     )

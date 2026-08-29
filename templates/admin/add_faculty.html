@@ -1,0 +1,123 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Faculty Member - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>➕ Add Faculty Member</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Provision new faculty accounts and credentials
+    </p>
+</div>
+
+{% if created_faculty %}
+<div class="card" style="border-top: 4px solid #10b981; background: #ffffff;">
+    <h2 style="color: #065f46; display: flex; align-items: center; gap: 8px;">
+        ✅ Faculty Account Created Successfully
+    </h2>
+    <p style="color: #334155; font-size: 14px; margin-bottom: 18px;">
+        The new faculty user and teacher profile have been securely created.
+    </p>
+
+    <!-- One-time credential disclosure box -->
+    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin-bottom: 22px;">
+        <div style="font-size: 15px; font-weight: 700; color: #065f46; margin-bottom: 12px;">
+            📋 Faculty Account Credentials
+        </div>
+        
+        <table style="width: 100%; max-width: 550px; background: transparent; border: none; margin-bottom: 14px;">
+            <tbody>
+                <tr>
+                    <td style="font-weight: 600; color: #374151; width: 160px; padding: 6px 0; border: none;">Faculty Name:</td>
+                    <td style="color: #111827; padding: 6px 0; border: none;"><strong>{{ created_faculty.name }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600; color: #374151; padding: 6px 0; border: none;">College Email:</td>
+                    <td style="color: #111827; padding: 6px 0; border: none;"><code>{{ created_faculty.email }}</code></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600; color: #374151; padding: 6px 0; border: none;">Employee ID:</td>
+                    <td style="color: #111827; padding: 6px 0; border: none;"><strong>{{ created_faculty.employee_id }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600; color: #374151; padding: 6px 0; border: none;">Department:</td>
+                    <td style="color: #111827; padding: 6px 0; border: none;">{{ created_faculty.department }}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 600; color: #374151; padding: 6px 0; border: none;">Temporary Password:</td>
+                    <td style="padding: 6px 0; border: none;">
+                        <code style="background: #1e293b; color: #38bdf8; font-size: 16px; font-weight: 700; padding: 4px 10px; border-radius: 4px; letter-spacing: 1px;">{{ created_faculty.temp_password }}</code>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #991b1b; line-height: 1.5;">
+            <strong>⚠️ Security Notice:</strong>
+            <br>
+            Please copy and share this temporary password securely with the faculty member now. 
+            Only the salted hash is stored on the server — this plaintext password cannot be retrieved again after leaving this page. 
+            The faculty member will be required to change their password upon initial login.
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-primary">➕ Add Another Faculty</a>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-teacher">← Back to Admin Panel</a>
+    </div>
+</div>
+{% else %}
+
+<div class="card" style="max-width: 600px;">
+    <h2>Faculty Provisioning Details</h2>
+    <p style="color: #64748b; font-size: 13px; margin-bottom: 20px;">
+        Provision a new teacher account with automatic role assignment and cryptographically secure credentials.
+    </p>
+
+    {% if error %}
+    <p class="error-text">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.add_faculty') }}">
+        <div class="form-group">
+            <label for="name">Faculty Full Name *</label>
+            <input type="text" id="name" name="name" placeholder="e.g. Prof. Arvind Deshmukh" value="{{ form_data.get('name', '') }}" required autofocus>
+            <div class="form-hint">Enter the official academic name.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="email">College Email Address *</label>
+            <input type="email" id="email" name="email" placeholder="e.g. deshmukh@vvp.edu" value="{{ form_data.get('email', '') }}" required>
+            <div class="form-hint">This email will be used for faculty login.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="employee_id">Employee ID / Staff Code *</label>
+            <input type="text" id="employee_id" name="employee_id" placeholder="e.g. EMP-1042" value="{{ form_data.get('employee_id', '') }}" required>
+            <div class="form-hint">Unique faculty identification number.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="department_id">Academic Department *</label>
+            <select id="department_id" name="department_id" required>
+                <option value="" disabled {% if not form_data.get('department_id') %}selected{% endif %}>-- Select Academic Department --</option>
+                {% for dept in departments %}
+                <option value="{{ dept.id }}" {% if form_data.get('department_id')|string == dept.id|string %}selected{% endif %}>
+                    {{ dept.name }} ({{ dept.code }})
+                </option>
+                {% endfor %}
+            </select>
+            {% if not departments %}
+            <div class="form-hint" style="color: #dc2626;">No departments found. Please ensure departments exist before adding faculty.</div>
+            {% endif %}
+        </div>
+
+        <div style="margin-top: 24px; display: flex; gap: 12px; align-items: center;">
+            <button type="submit" class="btn btn-primary">Create Faculty Account</button>
+            <a href="{{ url_for('admin.dashboard') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -573,6 +573,230 @@ class TestStudentIQ(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(resp.location.endswith("/admin/dashboard"))
 
+    # =========================================================================
+    # PHASE 3 TESTS: Faculty Provisioning (/admin/add-faculty)
+    # =========================================================================
+
+    def test_43_unauthenticated_add_faculty_redirects_to_login(self):
+        response = self.client.get("/admin/add-faculty", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.location)
+
+    def test_44_student_accessing_add_faculty_receives_403(self):
+        with self.app.app_context():
+            student = User(name="Student User", email="student_p3@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            db.session.add(student)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "student_p3@vvp.edu", "password": "pass"})
+        response = self.client.get("/admin/add-faculty")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b"403 - Access Forbidden", response.data)
+
+        # POST attempt as student also returns 403
+        post_resp = self.client.post("/admin/add-faculty", data={"name": "X", "email": "x@vvp.edu", "employee_id": "EMP-X", "department_id": "1"})
+        self.assertEqual(post_resp.status_code, 403)
+
+    def test_45_teacher_accessing_add_faculty_receives_403(self):
+        with self.app.app_context():
+            teacher = User(name="Teacher User", email="teacher_p3@vvp.edu", password_hash=generate_password_hash("pass"), role="teacher")
+            db.session.add(teacher)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "teacher_p3@vvp.edu", "password": "pass"})
+        response = self.client.get("/admin/add-faculty")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b"403 - Access Forbidden", response.data)
+
+    def test_46_admin_can_access_add_faculty_page_get(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_p3@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Computer Engineering", code="CO")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "admin_p3@vvp.edu", "password": "pass"})
+        response = self.client.get("/admin/add-faculty")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Add Faculty Member", response.data)
+        self.assertIn(b"Computer Engineering", response.data)
+
+    def test_47_valid_faculty_creation_succeeds_with_temp_password(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_create@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Information Technology", code="IT")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+            dept_id = dept.id
+
+        self.client.post("/login", data={"email": "admin_create@vvp.edu", "password": "pass"})
+        response = self.client.post(
+            "/admin/add-faculty",
+            data={
+                "name": "Prof. Rajesh Kumar",
+                "email": "rajesh@vvp.edu",
+                "employee_id": "EMP-2041",
+                "department_id": str(dept_id),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Faculty Account Created Successfully", response.data)
+        self.assertIn(b"Prof. Rajesh Kumar", response.data)
+        self.assertIn(b"rajesh@vvp.edu", response.data)
+        self.assertIn(b"EMP-2041", response.data)
+        self.assertIn(b"Temporary Password", response.data)
+
+        with self.app.app_context():
+            created_user = User.query.filter_by(email="rajesh@vvp.edu").first()
+            self.assertIsNotNone(created_user)
+            self.assertEqual(created_user.name, "Prof. Rajesh Kumar")
+            self.assertEqual(created_user.role, "teacher")
+            self.assertTrue(created_user.is_teacher)
+            self.assertFalse(created_user.is_student)
+            self.assertFalse(created_user.is_admin)
+            self.assertTrue(created_user.must_change_password)
+
+            # Check linked profile
+            self.assertIsNotNone(created_user.teacher_profile)
+            self.assertEqual(created_user.teacher_profile.employee_id, "EMP-2041")
+            self.assertEqual(created_user.teacher_profile.department_id, dept_id)
+            self.assertEqual(created_user.teacher_profile.department.name, "Information Technology")
+
+    def test_48_duplicate_email_rejected(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_dup@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            existing = User(name="Existing Person", email="existing@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            dept = Department(name="Civil Engineering", code="CE")
+            db.session.add_all([admin, existing, dept])
+            db.session.commit()
+            dept_id = dept.id
+
+        self.client.post("/login", data={"email": "admin_dup@vvp.edu", "password": "pass"})
+        response = self.client.post(
+            "/admin/add-faculty",
+            data={
+                "name": "Prof. New Person",
+                "email": "Existing@VVP.edu ",  # test normalization
+                "employee_id": "EMP-9999",
+                "department_id": str(dept_id),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"already exists", response.data)
+
+    def test_49_duplicate_employee_id_rejected(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_dup_emp@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            t_user = User(name="Teacher One", email="t1@vvp.edu", password_hash=generate_password_hash("pass"), role="teacher")
+            dept = Department(name="Mechanical Engineering", code="ME")
+            db.session.add_all([admin, t_user, dept])
+            db.session.commit()
+
+            profile = TeacherProfile(user_id=t_user.id, employee_id="EMP-1001", department_id=dept.id)
+            db.session.add(profile)
+            db.session.commit()
+            dept_id = dept.id
+
+        self.client.post("/login", data={"email": "admin_dup_emp@vvp.edu", "password": "pass"})
+        response = self.client.post(
+            "/admin/add-faculty",
+            data={
+                "name": "Teacher Two",
+                "email": "t2@vvp.edu",
+                "employee_id": "EMP-1001",
+                "department_id": str(dept_id),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Employee ID already exists", response.data)
+
+    def test_50_missing_required_fields_rejected(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_missing@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Automobile", code="AE")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+            dept_id = dept.id
+
+        self.client.post("/login", data={"email": "admin_missing@vvp.edu", "password": "pass"})
+
+        # Missing name
+        resp = self.client.post("/admin/add-faculty", data={"name": "", "email": "a@vvp.edu", "employee_id": "E1", "department_id": str(dept_id)})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields are required", resp.data)
+
+        # Missing email
+        resp = self.client.post("/admin/add-faculty", data={"name": "A", "email": "", "employee_id": "E1", "department_id": str(dept_id)})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields are required", resp.data)
+
+        # Missing employee_id
+        resp = self.client.post("/admin/add-faculty", data={"name": "A", "email": "a@vvp.edu", "employee_id": "", "department_id": str(dept_id)})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields are required", resp.data)
+
+        # Missing department_id
+        resp = self.client.post("/admin/add-faculty", data={"name": "A", "email": "a@vvp.edu", "employee_id": "E1", "department_id": ""})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields are required", resp.data)
+
+        # Invalid department_id
+        resp = self.client.post("/admin/add-faculty", data={"name": "A", "email": "a@vvp.edu", "employee_id": "E1", "department_id": "99999"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"valid department", resp.data)
+
+    def test_51_transaction_rollback_on_failure(self):
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_rb@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Electrical", code="EE")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+            dept_id = dept.id
+
+        self.client.post("/login", data={"email": "admin_rb@vvp.edu", "password": "pass"})
+
+        # Monkeypatch db.session.commit to raise an exception to verify rollback
+        from unittest.mock import patch
+        with patch.object(db.session, "commit", side_effect=Exception("Database commit error")):
+            resp = self.client.post(
+                "/admin/add-faculty",
+                data={
+                    "name": "Failed Faculty",
+                    "email": "failed_fac@vvp.edu",
+                    "employee_id": "EMP-FAIL",
+                    "department_id": str(dept_id),
+                },
+            )
+            self.assertEqual(resp.status_code, 500)
+
+        with self.app.app_context():
+            # Verify user was NOT created due to rollback
+            self.assertIsNone(User.query.filter_by(email="failed_fac@vvp.edu").first())
+            self.assertIsNone(TeacherProfile.query.filter_by(employee_id="EMP-FAIL").first())
+
+    def test_52_public_registration_cannot_specify_role(self):
+        # Even if a malicious user passes role='teacher' or role='admin' to /register
+        response = self.client.post(
+            "/register",
+            data={
+                "name": "Attacker",
+                "email": "attacker@vvp.edu",
+                "password": "pass",
+                "role": "admin",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with self.app.app_context():
+            user = User.query.filter_by(email="attacker@vvp.edu").first()
+            self.assertIsNotNone(user)
+            self.assertEqual(user.role, "student")
+            self.assertTrue(user.is_student)
+            self.assertFalse(user.is_admin)
+            self.assertFalse(user.is_teacher)
+
 
 if __name__ == "__main__":
     unittest.main()
+

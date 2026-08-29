@@ -12,6 +12,16 @@
 </div>
 
 <div class="card">
+    <h2>⚡ Academic Administration &amp; Provisioning</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
+        Manage faculty members, academic departments, and institutional settings.
+    </p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-primary">➕ Add Faculty Member</a>
+    </div>
+</div>
+
+<div class="card">
     <h2>🛡️ Administrator Confirmation</h2>
     <p style="color: #334155; font-size: 15px; margin-bottom: 14px;">
         Authentication verified. You are securely authenticated as an <strong>Administrator</strong>.
@@ -21,7 +31,7 @@
         <br>
         • Role authorization &amp; protected workspace verified.
         <br>
-        • Faculty provisioning and academic management tools will be configured in upcoming phases.
+        • Faculty provisioning and academic management tools active.
     </div>
 </div>
 {% endblock %}

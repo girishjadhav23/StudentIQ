@@ -8,11 +8,14 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="student")
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if self.role is None:
             self.role = "student"
+        if self.must_change_password is None:
+            self.must_change_password = False
 
     @property
     def is_teacher(self):
