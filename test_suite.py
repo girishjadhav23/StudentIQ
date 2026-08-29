@@ -18,10 +18,11 @@ from routes.attendance import calculate_subject_attendance, calculate_overall_at
 
 class TestStudentIQ(unittest.TestCase):
     def setUp(self):
-        self.app = create_app()
-        self.app.config["TESTING"] = True
-        self.app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.app = create_app({
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+            "WTF_CSRF_ENABLED": False,
+        })
         self.client = self.app.test_client()
 
         with self.app.app_context():
@@ -450,7 +451,7 @@ class TestStudentIQ(unittest.TestCase):
     # =========================================================================
 
     def test_33_cli_create_admin_new_user(self):
-        runner = CliRunner()
+        runner = self.app.test_cli_runner()
         result = runner.invoke(
             self.app.cli.get_command(self.app, "create-admin"),
             ["--name", "Head Admin", "--email", "admin@vvp.edu", "--password", "AdminPass123"],
@@ -472,7 +473,7 @@ class TestStudentIQ(unittest.TestCase):
             db.session.add(user)
             db.session.commit()
 
-        runner = CliRunner()
+        runner = self.app.test_cli_runner()
         result = runner.invoke(
             self.app.cli.get_command(self.app, "create-admin"),
             ["--name", "Promoted Admin", "--email", "promote@vvp.edu", "--password", "NewAdminPass123"],

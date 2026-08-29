@@ -18,9 +18,14 @@ from routes.subjects import subjects
 from routes.attendance import attendance
 from routes.admin import admin
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
     app.config.from_object(Config)
+    if test_config is not None:
+        if isinstance(test_config, dict):
+            app.config.update(test_config)
+        else:
+            app.config.from_mapping(test_config)
 
     db.init_app(app)
     login_manager.init_app(app)
