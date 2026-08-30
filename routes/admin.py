@@ -476,3 +476,85 @@ def add_assignment():
         error=error,
         form_data={},
     )
+
+
+# =========================================================================
+# ADMIN SUBJECT MANAGEMENT
+# =========================================================================
+
+@admin.route("/subjects")
+@admin_required
+def list_subjects():
+    all_subjects = (
+        Subject.query
+        .options(joinedload(Subject.department))
+        .order_by(Subject.name.asc())
+        .all()
+    )
+    return render_template("admin/subjects/list.html", subjects=all_subjects)
+
+
+@admin.route("/subjects/add", methods=["GET", "POST"])
+@admin_required
+def add_subject():
+    departments = Department.query.order_by(Department.name.asc()).all()
+    error = None
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        code = request.form.get("code", "").strip().upper()
+        department_id_raw = request.form.get("department_id", "").strip()
+        semester_raw = request.form.get("semester", "").strip()
+
+        if not name:
+            error = "Subject name is required."
+            flash(error, "error")
+            return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        dept_id = None
+        if department_id_raw:
+            try:
+                dept_id = int(department_id_raw)
+                dept = db.session.get(Department, dept_id)
+                if not dept:
+                    error = "Selected department does not exist."
+                    flash(error, "error")
+                    return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 400
+            except ValueError:
+                error = "Invalid department."
+                flash(error, "error")
+                return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        semester = None
+        if semester_raw:
+            try:
+                semester = int(semester_raw)
+                if semester < 1 or semester > 8:
+                    error = "Semester must be between 1 and 8."
+                    flash(error, "error")
+                    return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 400
+            except ValueError:
+                error = "Invalid semester value."
+                flash(error, "error")
+                return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            subject = Subject(
+                user_id=current_user.id,
+                name=name,
+                code=code or None,
+                department_id=dept_id,
+                semester=semester,
+            )
+            db.session.add(subject)
+            db.session.commit()
+            flash(f"Subject '{subject.name}' created successfully!", "success")
+            return redirect(url_for("admin.list_subjects"))
+        except Exception:
+            db.session.rollback()
+            error = "Failed to create subject due to a database error."
+            flash(error, "error")
+            return render_template("admin/subjects/add.html", departments=departments, error=error, form_data=request.form), 500
+
+    return render_template("admin/subjects/add.html", departments=departments, error=error, form_data={})
+

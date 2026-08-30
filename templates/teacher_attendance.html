@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block title %}Faculty Attendance Portal - StudentIQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👨‍🏫 Faculty Attendance Management</h1>
+    <p>
+        <span class="user-role-badge role-teacher">Faculty Member</span>
+        &bull; Mark and manage student attendance for your assigned classes
+    </p>
+</div>
+
+{% if assignments %}
+<div class="card">
+    <h2>Your Teaching Allocations</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
+        Select a class section and subject to mark attendance or view historical logs.
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Subject Name</th>
+                <th>Course Code</th>
+                <th>Class Section</th>
+                <th>Academic Year / Sem</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assignments %}
+            <tr>
+                <td><strong>{{ a.subject.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ a.subject.code or "—" }}
+                    </span>
+                </td>
+                <td><strong>{{ a.class_section.name }}</strong></td>
+                <td>Sem {{ a.class_section.semester }} (AY {{ a.class_section.academic_year }})</td>
+                <td class="actions">
+                    <a href="{{ url_for('attendance.mark_attendance', subject_id=a.subject.id, class_section_id=a.class_section.id) }}" class="btn btn-teacher btn-sm">
+                        ✏️ Mark Attendance
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 40px 20px;">
+    <div style="font-size: 36px; margin-bottom: 8px;">📋</div>
+    <h3>No Active Teaching Assignments</h3>
+    <p style="color: #64748b; font-size: 14px; max-width: 460px; margin: 0 auto;">
+        You have not been assigned to any subjects or class sections yet. Please contact your department HOD or administrator.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

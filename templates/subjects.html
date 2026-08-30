@@ -1,38 +1,44 @@
 {% extends "layout.html" %}
 
-{% block title %}Subjects - StudentIQ{% endblock %}
+{% block title %}Course Subjects - StudentIQ{% endblock %}
 
 {% block content %}
+{% if is_teacher %}
 <div class="page-header">
-    <h1>Your Subjects</h1>
-    <p>Manage your subjects, course codes, and attendance logs.</p>
+    <h1>👨‍🏫 Your Teaching Assignments</h1>
+    <p>Subjects and class sections assigned to you for instruction and attendance tracking.</p>
 </div>
 
-<p style="margin-bottom:20px;">
-    <a href="{{ url_for('subjects.add_subject') }}" class="btn btn-primary btn-sm">Add Subject</a>
-</p>
-
-{% if subjects %}
+{% if teacher_assignments %}
 <div class="card">
     <table>
         <thead>
             <tr>
-                <th>Subject</th>
-                <th>Code</th>
+                <th>Subject Name</th>
+                <th>Course Code</th>
+                <th>Class Section</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            {% for subject in subjects %}
+            {% for a in teacher_assignments %}
             <tr>
-                <td>{{ subject.name }}</td>
-                <td>{{ subject.code or '—' }}</td>
+                <td><strong>{{ a.subject.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ a.subject.code or "N/A" }}
+                    </span>
+                </td>
+                <td>
+                    <strong>{{ a.class_section.name }}</strong>
+                    <span style="color: #64748b; font-size: 12px; display: block;">
+                        Sem {{ a.class_section.semester }} &bull; AY: {{ a.class_section.academic_year }}
+                    </span>
+                </td>
                 <td class="actions">
-                    <a href="{{ url_for('subjects.edit_subject', subject_id=subject.id) }}" class="btn btn-primary btn-sm">Edit</a>
-                    <a href="{{ url_for('attendance.view_attendance', subject_id=subject.id) }}" class="btn btn-primary btn-sm" style="background:#334155;">Attendance</a>
-                    <form method="POST" action="{{ url_for('subjects.delete_subject', subject_id=subject.id) }}" style="display:inline;">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this subject?');">Delete</button>
-                    </form>
+                    <a href="{{ url_for('attendance.mark_attendance', subject_id=a.subject.id, class_section_id=a.class_section.id) }}" class="btn btn-teacher btn-sm">
+                        ✏️ Mark Attendance
+                    </a>
                 </td>
             </tr>
             {% endfor %}
@@ -40,8 +46,70 @@
     </table>
 </div>
 {% else %}
-<div class="card">
-    <p>You have not added any subjects yet. Click "Add Subject" to begin.</p>
+<div class="card" style="text-align: center; padding: 36px 20px;">
+    <div style="font-size: 36px; margin-bottom: 8px;">📋</div>
+    <h3>No Teaching Assignments Found</h3>
+    <p style="color: #64748b; font-size: 14px;">You have not been assigned to any subjects or class sections yet. Contact your administrator or HOD.</p>
 </div>
+{% endif %}
+
+{% else %}
+<div class="page-header">
+    <h1>📚 Your Curriculum Subjects</h1>
+    <p>
+        {% if class_section %}
+            Enrolled Section: <strong>{{ class_section.name }}</strong> (Semester {{ class_section.semester }}, AY {{ class_section.academic_year }})
+        {% else %}
+            Curriculum subjects for your enrolled academic section.
+        {% endif %}
+    </p>
+</div>
+
+{% if curriculum_assignments %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Code</th>
+                <th>Faculty Instructor</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in curriculum_assignments %}
+            <tr>
+                <td><strong>{{ a.subject.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ a.subject.code or "—" }}
+                    </span>
+                </td>
+                <td>
+                    {{ a.teacher.user.name if a.teacher and a.teacher.user else "Staff" }}
+                </td>
+                <td class="actions">
+                    <a href="{{ url_for('attendance.view_attendance', subject_id=a.subject.id) }}" class="btn btn-primary btn-sm">
+                        📊 View Attendance
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 36px 20px;">
+    <div style="font-size: 36px; margin-bottom: 8px;">📚</div>
+    <h3>No Subjects Allocated</h3>
+    <p style="color: #64748b; font-size: 14px;">
+        {% if not class_section %}
+            You are not currently enrolled in an active class section. Please contact your department administration.
+        {% else %}
+            No subjects have been allocated to your class section ({{ class_section.name }}) yet.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}

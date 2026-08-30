@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+
+{% block title %}Course Subjects - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📚 Course Subjects</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Master academic catalog and subject definitions
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('admin.add_subject') }}" class="btn btn-primary">➕ Add Subject</a>
+        <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-teacher">➕ Allocate to Teacher</a>
+    </div>
+    <a href="{{ url_for('admin.dashboard') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">← Back to Admin Panel</a>
+</div>
+
+{% if subjects %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Subject Name</th>
+                <th>Code</th>
+                <th>Department</th>
+                <th>Semester</th>
+                <th>Allocated Teachers</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in subjects %}
+            <tr>
+                <td><strong>{{ s.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ s.code or "N/A" }}
+                    </span>
+                </td>
+                <td>{{ s.department.name if s.department else "General / Unassigned" }}</td>
+                <td>{{ "Semester " ~ s.semester if s.semester else "N/A" }}</td>
+                <td>{{ s.teacher_assignments | length }} allocation(s)</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 40px 20px;">
+    <div style="font-size: 40px; margin-bottom: 12px;">📚</div>
+    <h2 style="margin-bottom: 8px;">No Subjects Found</h2>
+    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 20px auto;">
+        No course subjects have been defined in the catalog yet.
+    </p>
+    <a href="{{ url_for('admin.add_subject') }}" class="btn btn-primary">➕ Create First Subject</a>
+</div>
+{% endif %}
+{% endblock %}

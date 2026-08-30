@@ -15,6 +15,7 @@ from models.teacher_profile import TeacherProfile
 from models.class_enrollment import ClassEnrollment
 from models.teacher_assignment import TeacherAssignment
 from routes.attendance import calculate_subject_attendance, calculate_overall_attendance
+from services.academic import is_teacher_assigned_to_subject_and_class
 from unittest.mock import patch
 
 
@@ -141,130 +142,158 @@ class TestStudentIQ(unittest.TestCase):
 
     def test_11_subject_crud_lifecycle(self):
         with self.app.app_context():
-            user = User(name="Owner", email="o@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
-            db.session.add(user)
+            admin = User(name="Admin Sub", email="adm_sub@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            student = User(name="Student Sub", email="stu_sub@vvp.edu", password_hash=generate_password_hash("pass"), role="student")
+            db.session.add_all([admin, student])
             db.session.commit()
-            uid = user.id
 
-        self.client.post("/login", data={"email": "o@vvp.edu", "password": "pass"})
+        # Student cannot manually create subjects -> 403
+        self.client.post("/login", data={"email": "stu_sub@vvp.edu", "password": "pass"})
+        stu_add = self.client.post("/subjects/add", data={"name": "Illegal Subject"})
+        self.assertEqual(stu_add.status_code, 403)
+        self.client.get("/logout")
 
-        # Add subject
-        add_resp = self.client.post("/subjects/add", data={"name": "Data Structures", "code": "DS-301"}, follow_redirects=True)
+        # Admin can create subjects via admin catalog
+        self.client.post("/login", data={"email": "adm_sub@vvp.edu", "password": "pass"})
+        add_resp = self.client.post("/admin/subjects/add", data={"name": "Data Structures", "code": "DS-301"}, follow_redirects=True)
         self.assertEqual(add_resp.status_code, 200)
         self.assertIn(b"Data Structures", add_resp.data)
 
         with self.app.app_context():
-            subj = Subject.query.filter_by(user_id=uid, name="Data Structures").first()
+            subj = Subject.query.filter_by(name="Data Structures").first()
             self.assertIsNotNone(subj)
-            sid = subj.id
-
-        # Edit subject
-        edit_resp = self.client.post(f"/subjects/{sid}/edit", data={"name": "Advanced Data Structures", "code": "ADS-301"}, follow_redirects=True)
-        self.assertEqual(edit_resp.status_code, 200)
-        self.assertIn(b"Advanced Data Structures", edit_resp.data)
-
-        # Delete subject
-        del_resp = self.client.post(f"/subjects/{sid}/delete", follow_redirects=True)
-        self.assertEqual(del_resp.status_code, 200)
-        with self.app.app_context():
-            self.assertIsNone(Subject.query.get(sid))
+            self.assertEqual(subj.code, "DS-301")
 
     def test_12_subject_ownership_isolation(self):
         with self.app.app_context():
             u1 = User(name="U1", email="u1@vvp.edu", password_hash=generate_password_hash("p"), role="student")
-            u2 = User(name="U2", email="u2@vvp.edu", password_hash=generate_password_hash("p"), role="student")
-            db.session.add_all([u1, u2])
+            db.session.add(u1)
             db.session.commit()
-
             s1 = Subject(user_id=u1.id, name="U1 Subject")
             db.session.add(s1)
             db.session.commit()
             s1_id = s1.id
 
-        # U2 logs in and tries to edit U1's subject
-        self.client.post("/login", data={"email": "u2@vvp.edu", "password": "p"})
+        # Student cannot edit or delete subjects -> 403
+        self.client.post("/login", data={"email": "u1@vvp.edu", "password": "p"})
         resp = self.client.get(f"/subjects/{s1_id}/edit")
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 403)
+        del_resp = self.client.post(f"/subjects/{s1_id}/delete")
+        self.assertEqual(del_resp.status_code, 403)
 
     def test_13_attendance_logging_and_calculations(self):
         with self.app.app_context():
+            dept = Department(name="Computer Engineering", code="CE")
+            db.session.add(dept)
+            db.session.commit()
+
             u = User(name="Att User", email="att@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
             db.session.commit()
-            s = Subject(user_id=u.id, name="Physics")
-            db.session.add(s)
+
+            sp = StudentProfile(user_id=u.id, roll_no="101", admission_year=2024, department_id=dept.id)
+            cs = ClassSection(department_id=dept.id, name="SY-CE-A", academic_year="2026-27", semester=3, year_of_study=2)
+            s = Subject(user_id=u.id, name="Physics", department_id=dept.id, semester=3)
+            db.session.add_all([sp, cs, s])
             db.session.commit()
-            sid = s.id
-            uid = u.id
 
-        self.client.post("/login", data={"email": "att@vvp.edu", "password": "p"})
-        d1 = date.today() - timedelta(days=2)
-        d2 = date.today() - timedelta(days=1)
+            d1 = date.today() - timedelta(days=2)
+            d2 = date.today() - timedelta(days=1)
+            att1 = Attendance(student_id=sp.id, subject_id=s.id, class_section_id=cs.id, date=d1, status="Present")
+            att2 = Attendance(student_id=sp.id, subject_id=s.id, class_section_id=cs.id, date=d2, status="Absent")
+            db.session.add_all([att1, att2])
+            db.session.commit()
 
-        self.client.post(f"/subjects/{sid}/attendance/add", data={"date": str(d1), "status": "Present"}, follow_redirects=True)
-        self.client.post(f"/subjects/{sid}/attendance/add", data={"date": str(d2), "status": "Absent"}, follow_redirects=True)
-
-        with self.app.app_context():
-            stats = calculate_subject_attendance(sid)
+            stats = calculate_subject_attendance(s.id, student_profile_id=sp.id)
             self.assertEqual(stats["total_classes"], 2)
             self.assertEqual(stats["present_classes"], 1)
             self.assertEqual(stats["absent_classes"], 1)
             self.assertEqual(stats["percentage"], 50.0)
 
-            overall = calculate_overall_attendance(uid)
+            overall = calculate_overall_attendance(u.id)
             self.assertEqual(overall, 50.0)
 
     def test_14_future_attendance_rejected(self):
         with self.app.app_context():
-            u = User(name="Future Att", email="fut@vvp.edu", password_hash=generate_password_hash("p"), role="student")
-            db.session.add(u)
+            admin = User(name="Admin User", email="adm_fut@vvp.edu", password_hash=generate_password_hash("p"), role="admin")
+            dept = Department(name="Computer", code="CO_FUT")
+            db.session.add_all([admin, dept])
             db.session.commit()
-            s = Subject(user_id=u.id, name="Math")
-            db.session.add(s)
-            db.session.commit()
-            sid = s.id
 
-        self.client.post("/login", data={"email": "fut@vvp.edu", "password": "p"})
+            teach = User(name="Teach Fut", email="tfut@vvp.edu", password_hash=generate_password_hash("p"), role="teacher")
+            db.session.add(teach)
+            db.session.commit()
+
+            tp = TeacherProfile(user_id=teach.id, employee_id="EMP-FUT", department_id=dept.id)
+            cs = ClassSection(department_id=dept.id, name="CO-FUT-A", academic_year="2026-27", semester=3, year_of_study=2)
+            s = Subject(user_id=admin.id, name="Math", department_id=dept.id, semester=3)
+            db.session.add_all([tp, cs, s])
+            db.session.commit()
+
+            ta = TeacherAssignment(teacher_id=tp.id, subject_id=s.id, class_section_id=cs.id)
+            db.session.add(ta)
+            db.session.commit()
+            sid, csid = s.id, cs.id
+
+        self.client.post("/login", data={"email": "tfut@vvp.edu", "password": "p"})
         future_date = date.today() + timedelta(days=5)
-        resp = self.client.post(f"/subjects/{sid}/attendance/add", data={"date": str(future_date), "status": "Present"})
-        self.assertEqual(resp.status_code, 200)
+        resp = self.client.post(f"/subjects/{sid}/sections/{csid}/attendance/mark", data={"date": str(future_date)})
+        self.assertEqual(resp.status_code, 400)
         self.assertIn(b"cannot be in the future", resp.data)
 
     def test_15_duplicate_date_attendance_rejected(self):
         with self.app.app_context():
+            dept = Department(name="Electronics", code="EX")
+            db.session.add(dept)
+            db.session.commit()
+
             u = User(name="Dup Att", email="dup@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
             db.session.commit()
-            s = Subject(user_id=u.id, name="Math")
-            db.session.add(s)
-            db.session.commit()
-            sid = s.id
 
-        self.client.post("/login", data={"email": "dup@vvp.edu", "password": "p"})
-        d = date.today() - timedelta(days=1)
-        self.client.post(f"/subjects/{sid}/attendance/add", data={"date": str(d), "status": "Present"})
-        resp = self.client.post(f"/subjects/{sid}/attendance/add", data={"date": str(d), "status": "Absent"})
-        self.assertIn(b"already exists", resp.data)
+            sp = StudentProfile(user_id=u.id, roll_no="102", department_id=dept.id)
+            cs = ClassSection(department_id=dept.id, name="SY-EX-A", academic_year="2026-27", semester=3, year_of_study=2)
+            s = Subject(user_id=u.id, name="Math", department_id=dept.id, semester=3)
+            db.session.add_all([sp, cs, s])
+            db.session.commit()
+
+            d = date.today() - timedelta(days=1)
+            att1 = Attendance(student_id=sp.id, subject_id=s.id, class_section_id=cs.id, date=d, status="Present")
+            db.session.add(att1)
+            db.session.commit()
+
+            # Unique constraint prevents duplicate for same student, subject, class_section, date
+            from sqlalchemy.exc import IntegrityError
+            att2 = Attendance(student_id=sp.id, subject_id=s.id, class_section_id=cs.id, date=d, status="Absent")
+            db.session.add(att2)
+            with self.assertRaises(IntegrityError):
+                db.session.commit()
+            db.session.rollback()
 
     def test_16_delete_attendance_record(self):
         with self.app.app_context():
+            dept = Department(name="Civil", code="CV")
+            db.session.add(dept)
+            db.session.commit()
+
             u = User(name="Del Att", email="del@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
             db.session.commit()
-            s = Subject(user_id=u.id, name="Math")
-            db.session.add(s)
+
+            sp = StudentProfile(user_id=u.id, roll_no="103", department_id=dept.id)
+            cs = ClassSection(department_id=dept.id, name="SY-CV-A", academic_year="2026-27", semester=3, year_of_study=2)
+            s = Subject(user_id=u.id, name="Surveying", department_id=dept.id, semester=3)
+            db.session.add_all([sp, cs, s])
             db.session.commit()
-            att = Attendance(subject_id=s.id, date=date.today() - timedelta(days=1), status="Present")
+
+            att = Attendance(student_id=sp.id, subject_id=s.id, class_section_id=cs.id, date=date.today() - timedelta(days=1), status="Present")
             db.session.add(att)
             db.session.commit()
             aid = att.id
-            sid = s.id
 
-        self.client.post("/login", data={"email": "del@vvp.edu", "password": "p"})
-        resp = self.client.post(f"/subjects/{sid}/attendance/{aid}/delete", follow_redirects=True)
-        self.assertEqual(resp.status_code, 200)
-        with self.app.app_context():
-            self.assertIsNone(Attendance.query.get(aid))
+            db.session.delete(att)
+            db.session.commit()
+            self.assertIsNone(db.session.get(Attendance, aid))
 
     def test_17_department_model_and_relationships(self):
         with self.app.app_context():
@@ -400,16 +429,16 @@ class TestStudentIQ(unittest.TestCase):
 
     def test_29_add_subject_requires_name(self):
         with self.app.app_context():
-            u = User(name="Sub User", email="sub@vvp.edu", password_hash=generate_password_hash("p"), role="student")
-            db.session.add(u)
+            admin = User(name="Admin Sub", email="adm_sub_req@vvp.edu", password_hash=generate_password_hash("p"), role="admin")
+            db.session.add(admin)
             db.session.commit()
 
-        self.client.post("/login", data={"email": "sub@vvp.edu", "password": "p"})
-        resp = self.client.post("/subjects/add", data={"name": "", "code": "101"})
-        self.assertEqual(resp.status_code, 200)
+        self.client.post("/login", data={"email": "adm_sub_req@vvp.edu", "password": "p"})
+        resp = self.client.post("/admin/subjects/add", data={"name": "", "code": "101"})
+        self.assertEqual(resp.status_code, 400)
         self.assertIn(b"Subject name is required", resp.data)
 
-    def test_30_edit_subject_requires_name(self):
+    def test_30_edit_subject_requires_admin(self):
         with self.app.app_context():
             u = User(name="Sub User", email="sub2@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
@@ -420,11 +449,10 @@ class TestStudentIQ(unittest.TestCase):
             sid = s.id
 
         self.client.post("/login", data={"email": "sub2@vvp.edu", "password": "p"})
-        resp = self.client.post(f"/subjects/{sid}/edit", data={"name": ""})
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"Subject name is required", resp.data)
+        resp = self.client.post(f"/subjects/{sid}/edit", data={"name": "New OS"})
+        self.assertEqual(resp.status_code, 403)
 
-    def test_31_delete_nonexistent_subject_404(self):
+    def test_31_delete_nonexistent_subject_403_for_student(self):
         with self.app.app_context():
             u = User(name="Sub User", email="sub3@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
@@ -432,21 +460,17 @@ class TestStudentIQ(unittest.TestCase):
 
         self.client.post("/login", data={"email": "sub3@vvp.edu", "password": "p"})
         resp = self.client.post("/subjects/99999/delete")
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 403)
 
-    def test_32_delete_nonexistent_attendance_404(self):
+    def test_32_unauthorized_attendance_marking_blocked(self):
         with self.app.app_context():
             u = User(name="Sub User", email="sub4@vvp.edu", password_hash=generate_password_hash("p"), role="student")
             db.session.add(u)
             db.session.commit()
-            s = Subject(user_id=u.id, name="DBMS")
-            db.session.add(s)
-            db.session.commit()
-            sid = s.id
 
         self.client.post("/login", data={"email": "sub4@vvp.edu", "password": "p"})
-        resp = self.client.post(f"/subjects/{sid}/attendance/99999/delete")
-        self.assertEqual(resp.status_code, 404)
+        resp = self.client.post("/subjects/99999/sections/99999/attendance/mark", data={"date": str(date.today())})
+        self.assertEqual(resp.status_code, 403)
 
     # =========================================================================
     # PHASE 2 TESTS: Admin Foundation & Authorization
@@ -1635,8 +1659,280 @@ class TestStudentIQ(unittest.TestCase):
             ).first()
             self.assertIsNotNone(assigned)
 
+    # =========================================================================
+    # PHASE 6 TESTS: Curriculum-Derived Student Subjects & Per-Student Attendance
+    # =========================================================================
+
+    def _setup_phase6_environment(self):
+        """Helper to create Dept, 2 Teachers, 2 Subjects, 2 ClassSections, Enrollments, and Assignments."""
+        with self.app.app_context():
+            dept = Department(name="Computer Engineering", code="CO_P6")
+            db.session.add(dept)
+            db.session.commit()
+
+            # Teacher 1 & Teacher 2
+            t1_user = User(name="Prof. Verma", email="verma@vvp.edu", password_hash=generate_password_hash("p"), role="teacher")
+            t2_user = User(name="Prof. Kulkarni", email="kulkarni_p6@vvp.edu", password_hash=generate_password_hash("p"), role="teacher")
+            # Student 1 & Student 2
+            s1_user = User(name="Aarav Mehta", email="aarav@vvp.edu", password_hash=generate_password_hash("p"), role="student")
+            s2_user = User(name="Diya Patil", email="diya@vvp.edu", password_hash=generate_password_hash("p"), role="student")
+            # Unenrolled student
+            s3_user = User(name="Rohan Joshi", email="rohan@vvp.edu", password_hash=generate_password_hash("p"), role="student")
+
+            db.session.add_all([t1_user, t2_user, s1_user, s2_user, s3_user])
+            db.session.commit()
+
+            t1_prof = TeacherProfile(user_id=t1_user.id, employee_id="EMP-V01", department_id=dept.id)
+            t2_prof = TeacherProfile(user_id=t2_user.id, employee_id="EMP-K02", department_id=dept.id)
+
+            s1_prof = StudentProfile(user_id=s1_user.id, roll_no="101", department_id=dept.id)
+            s2_prof = StudentProfile(user_id=s2_user.id, roll_no="102", department_id=dept.id)
+            s3_prof = StudentProfile(user_id=s3_user.id, roll_no="103", department_id=dept.id)
+
+            sec_a = ClassSection(department_id=dept.id, name="TY-CO-A", academic_year="2026-27", semester=5, year_of_study=3)
+            sec_b = ClassSection(department_id=dept.id, name="TY-CO-B", academic_year="2026-27", semester=5, year_of_study=3)
+
+            subj_os = Subject(user_id=t1_user.id, name="Operating Systems", code="OS-501", department_id=dept.id, semester=5)
+            subj_db = Subject(user_id=t2_user.id, name="Database Systems", code="DB-502", department_id=dept.id, semester=5)
+
+            db.session.add_all([t1_prof, t2_prof, s1_prof, s2_prof, s3_prof, sec_a, sec_b, subj_os, subj_db])
+            db.session.commit()
+
+            # Enroll Student 1 and Student 2 in Section A
+            enr1 = ClassEnrollment(student_id=s1_prof.id, class_section_id=sec_a.id, is_active=True)
+            enr2 = ClassEnrollment(student_id=s2_prof.id, class_section_id=sec_a.id, is_active=True)
+
+            # Assign Teacher 1 to OS in Section A
+            assign1 = TeacherAssignment(teacher_id=t1_prof.id, subject_id=subj_os.id, class_section_id=sec_a.id)
+            # Assign Teacher 2 to DB in Section B
+            assign2 = TeacherAssignment(teacher_id=t2_prof.id, subject_id=subj_db.id, class_section_id=sec_b.id)
+
+            db.session.add_all([enr1, enr2, assign1, assign2])
+            db.session.commit()
+
+            return {
+                "t1_user_id": t1_user.id,
+                "t2_user_id": t2_user.id,
+                "s1_user_id": s1_user.id,
+                "s2_user_id": s2_user.id,
+                "s3_user_id": s3_user.id,
+                "t1_prof_id": t1_prof.id,
+                "t2_prof_id": t2_prof.id,
+                "s1_prof_id": s1_prof.id,
+                "s2_prof_id": s2_prof.id,
+                "s3_prof_id": s3_prof.id,
+                "sec_a_id": sec_a.id,
+                "sec_b_id": sec_b.id,
+                "subj_os_id": subj_os.id,
+                "subj_db_id": subj_db.id,
+            }
+
+    def test_82_student_subjects_derived_from_class_enrollment_and_teacher_assignment(self):
+        ids = self._setup_phase6_environment()
+        self.client.post("/login", data={"email": "aarav@vvp.edu", "password": "p"})
+
+        resp = self.client.get("/subjects")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"OS-501", resp.data)
+        self.assertIn(b"Prof. Verma", resp.data)
+        # Database Systems is assigned to Section B, so Aarav in Section A does not see it
+        self.assertNotIn(b"Database Systems", resp.data)
+        # No student self-add subject button
+        self.assertNotIn(b"Add Subject", resp.data)
+
+    def test_83_student_subjects_update_dynamically_with_curriculum_changes(self):
+        ids = self._setup_phase6_environment()
+
+        # Add Database Systems to Section A via TeacherAssignment
+        with self.app.app_context():
+            assign3 = TeacherAssignment(
+                teacher_id=ids["t2_prof_id"],
+                subject_id=ids["subj_db_id"],
+                class_section_id=ids["sec_a_id"],
+            )
+            db.session.add(assign3)
+            db.session.commit()
+
+        # Student in Section A now sees both OS and DB
+        self.client.post("/login", data={"email": "aarav@vvp.edu", "password": "p"})
+        resp = self.client.get("/subjects")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"Database Systems", resp.data)
+
+    def test_84_teacher_sees_only_own_assigned_subject_class_combinations(self):
+        ids = self._setup_phase6_environment()
+        # Teacher 1 (assigned to OS for Section A)
+        self.client.post("/login", data={"email": "verma@vvp.edu", "password": "p"})
+
+        resp = self.client.get("/teacher/attendance")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"TY-CO-A", resp.data)
+        self.assertNotIn(b"Database Systems", resp.data)
+        self.assertNotIn(b"TY-CO-B", resp.data)
+
+    def test_85_teacher_views_roster_for_assigned_combination(self):
+        ids = self._setup_phase6_environment()
+        self.client.post("/login", data={"email": "verma@vvp.edu", "password": "p"})
+
+        resp = self.client.get(f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Aarav Mehta", resp.data)
+        self.assertIn(b"101", resp.data)
+        self.assertIn(b"Diya Patil", resp.data)
+        self.assertIn(b"102", resp.data)
+        # Rohan is not enrolled in Section A
+        self.assertNotIn(b"Rohan Joshi", resp.data)
+
+    def test_86_teacher_marks_attendance_for_assigned_class(self):
+        ids = self._setup_phase6_environment()
+        self.client.post("/login", data={"email": "verma@vvp.edu", "password": "p"})
+
+        today_str = date.today().isoformat()
+        resp = self.client.post(
+            f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark",
+            data={
+                "date": today_str,
+                f"status_{ids['s1_prof_id']}": "Present",
+                f"status_{ids['s2_prof_id']}": "Absent",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        # Verify DB records
+        with self.app.app_context():
+            a1 = Attendance.query.filter_by(
+                student_id=ids["s1_prof_id"],
+                subject_id=ids["subj_os_id"],
+                class_section_id=ids["sec_a_id"],
+                date=date.today(),
+            ).first()
+            self.assertIsNotNone(a1)
+            self.assertEqual(a1.status, "Present")
+
+            a2 = Attendance.query.filter_by(
+                student_id=ids["s2_prof_id"],
+                subject_id=ids["subj_os_id"],
+                class_section_id=ids["sec_a_id"],
+                date=date.today(),
+            ).first()
+            self.assertIsNotNone(a2)
+            self.assertEqual(a2.status, "Absent")
+
+    def test_87_teacher_denied_403_for_unassigned_combination(self):
+        ids = self._setup_phase6_environment()
+        # Teacher 1 is NOT assigned to Section B / DB
+        self.client.post("/login", data={"email": "verma@vvp.edu", "password": "p"})
+
+        get_resp = self.client.get(f"/subjects/{ids['subj_db_id']}/sections/{ids['sec_b_id']}/attendance/mark")
+        self.assertEqual(get_resp.status_code, 403)
+
+        post_resp = self.client.post(
+            f"/subjects/{ids['subj_db_id']}/sections/{ids['sec_b_id']}/attendance/mark",
+            data={"date": date.today().isoformat()},
+        )
+        self.assertEqual(post_resp.status_code, 403)
+
+    def test_88_duplicate_same_session_attendance_upsert_correction(self):
+        ids = self._setup_phase6_environment()
+        self.client.post("/login", data={"email": "verma@vvp.edu", "password": "p"})
+
+        today_str = date.today().isoformat()
+        # 1. Initial submission: Student 1 = Absent
+        self.client.post(
+            f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark",
+            data={
+                "date": today_str,
+                f"status_{ids['s1_prof_id']}": "Absent",
+                f"status_{ids['s2_prof_id']}": "Absent",
+            },
+        )
+
+        # 2. Correction submission for same session: Student 1 = Present
+        self.client.post(
+            f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark",
+            data={
+                "date": today_str,
+                f"status_{ids['s1_prof_id']}": "Present",
+                f"status_{ids['s2_prof_id']}": "Absent",
+            },
+        )
+
+        with self.app.app_context():
+            # Total attendance rows for this subject+section+date must remain 2 (no duplicates)
+            count = Attendance.query.filter_by(
+                subject_id=ids["subj_os_id"],
+                class_section_id=ids["sec_a_id"],
+                date=date.today(),
+            ).count()
+            self.assertEqual(count, 2)
+
+            updated = Attendance.query.filter_by(
+                student_id=ids["s1_prof_id"],
+                subject_id=ids["subj_os_id"],
+                class_section_id=ids["sec_a_id"],
+                date=date.today(),
+            ).first()
+            self.assertEqual(updated.status, "Present")
+
+    def test_89_student_and_unauthenticated_blocked_from_marking_attendance(self):
+        ids = self._setup_phase6_environment()
+
+        # Unauthenticated -> redirect to login
+        resp = self.client.get(f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.location)
+
+        # Student -> 403
+        self.client.post("/login", data={"email": "aarav@vvp.edu", "password": "p"})
+        resp = self.client.get(f"/subjects/{ids['subj_os_id']}/sections/{ids['sec_a_id']}/attendance/mark")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_90_shared_ownership_helper_unit_test(self):
+        ids = self._setup_phase6_environment()
+        with self.app.app_context():
+            # Teacher 1 assigned to OS in Sec A -> True
+            self.assertTrue(is_teacher_assigned_to_subject_and_class(ids["t1_user_id"], ids["subj_os_id"], ids["sec_a_id"]))
+            # Teacher 1 not assigned to DB in Sec B -> False
+            self.assertFalse(is_teacher_assigned_to_subject_and_class(ids["t1_user_id"], ids["subj_db_id"], ids["sec_b_id"]))
+            # Student is not a teacher -> False
+            self.assertFalse(is_teacher_assigned_to_subject_and_class(ids["s1_user_id"], ids["subj_os_id"], ids["sec_a_id"]))
+
+    def test_91_student_can_view_own_subject_attendance(self):
+        ids = self._setup_phase6_environment()
+
+        # Log attendance
+        with self.app.app_context():
+            att = Attendance(
+                student_id=ids["s1_prof_id"],
+                subject_id=ids["subj_os_id"],
+                class_section_id=ids["sec_a_id"],
+                date=date.today() - timedelta(days=1),
+                status="Present",
+            )
+            db.session.add(att)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "aarav@vvp.edu", "password": "p"})
+        resp = self.client.get(f"/subjects/{ids['subj_os_id']}/attendance")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"100.0%", resp.data)
+
+    def test_92_student_without_enrollment_sees_empty_subjects_list(self):
+        ids = self._setup_phase6_environment()
+        # Rohan is not enrolled in any class section
+        self.client.post("/login", data={"email": "rohan@vvp.edu", "password": "p"})
+        resp = self.client.get("/subjects")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"No Subjects Allocated", resp.data)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
