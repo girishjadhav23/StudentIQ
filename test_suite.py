@@ -13,7 +13,9 @@ from models.class_section import ClassSection
 from models.student_profile import StudentProfile
 from models.teacher_profile import TeacherProfile
 from models.class_enrollment import ClassEnrollment
+from models.teacher_assignment import TeacherAssignment
 from routes.attendance import calculate_subject_attendance, calculate_overall_attendance
+from unittest.mock import patch
 
 
 class TestStudentIQ(unittest.TestCase):
@@ -1255,7 +1257,386 @@ class TestStudentIQ(unittest.TestCase):
         self.assertEqual(a_resp.status_code, 302)
         self.assertTrue(a_resp.location.endswith("/admin/dashboard"))
 
+    # =========================================================================
+    # PHASE 5 TESTS: Teacher-Subject-Class Assignment Management
+    # =========================================================================
+
+    def _setup_assignment_prerequisites(self):
+        """Helper to create admin, department, teacher, subject, and class section."""
+        with self.app.app_context():
+            admin = User(name="Admin User", email="admin_p5@vvp.edu", password_hash=generate_password_hash("adminpass"), role="admin")
+            dept = Department(name="Computer Engineering", code="CO")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+
+            teacher_user = User(name="Prof. Rajesh Kulkarni", email="kulkarni@vvp.edu", password_hash=generate_password_hash("teachpass"), role="teacher")
+            db.session.add(teacher_user)
+            db.session.commit()
+
+            teacher_profile = TeacherProfile(user_id=teacher_user.id, employee_id="EMP-CO-101", department_id=dept.id, designation="Assistant Professor")
+            subject = Subject(user_id=teacher_user.id, name="Operating Systems", code="OS-22415", department_id=dept.id, semester=4)
+            class_section = ClassSection(department_id=dept.id, name="SY-CO-A", academic_year="2026-27", semester=4, year_of_study=2)
+
+            db.session.add_all([teacher_profile, subject, class_section])
+            db.session.commit()
+
+            return {
+                "admin_id": admin.id,
+                "teacher_id": teacher_profile.id,
+                "subject_id": subject.id,
+                "class_section_id": class_section.id,
+                "dept_id": dept.id,
+            }
+
+    def test_70_admin_get_assignments_empty_and_populated(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        # Empty state
+        resp = self.client.get("/admin/assignments")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"No Assignments Found", resp.data)
+
+        # Create one assignment
+        with self.app.app_context():
+            assignment = TeacherAssignment(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=ids["class_section_id"],
+            )
+            db.session.add(assignment)
+            db.session.commit()
+
+        # Populated state
+        resp = self.client.get("/admin/assignments")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Prof. Rajesh Kulkarni", resp.data)
+        self.assertIn(b"EMP-CO-101", resp.data)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"SY-CO-A", resp.data)
+
+    def test_71_admin_get_assignments_add_form(self):
+        self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        resp = self.client.get("/admin/assignments/add")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Allocate Faculty to Subject", resp.data)
+        self.assertIn(b"Prof. Rajesh Kulkarni", resp.data)
+        self.assertIn(b"Operating Systems", resp.data)
+        self.assertIn(b"SY-CO-A", resp.data)
+
+    def test_72_admin_post_valid_assignment(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Successfully assigned", resp.data)
+
+        with self.app.app_context():
+            assignment = TeacherAssignment.query.filter_by(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=ids["class_section_id"],
+            ).first()
+            self.assertIsNotNone(assignment)
+            self.assertEqual(assignment.teacher.user.name, "Prof. Rajesh Kulkarni")
+
+    def test_73_duplicate_assignment_rejected(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        # Initial assignment
+        self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+
+        # Duplicate POST
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already assigned", resp.data)
+
+        with self.app.app_context():
+            count = TeacherAssignment.query.filter_by(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=ids["class_section_id"],
+            ).count()
+            self.assertEqual(count, 1)
+
+    def test_74_unique_constraint_enforced_at_db_level(self):
+        ids = self._setup_assignment_prerequisites()
+        from sqlalchemy.exc import IntegrityError
+
+        with self.app.app_context():
+            a1 = TeacherAssignment(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=ids["class_section_id"],
+            )
+            a2 = TeacherAssignment(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=ids["class_section_id"],
+            )
+            db.session.add(a1)
+            db.session.commit()
+
+            db.session.add(a2)
+            with self.assertRaises(IntegrityError):
+                db.session.commit()
+            db.session.rollback()
+
+    def test_75_missing_fields_rejected(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        # Missing teacher_id
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": "",
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"required", resp.data)
+
+        # Missing subject_id
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": "",
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"required", resp.data)
+
+        # Missing class_section_id
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": "",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"required", resp.data)
+
+    def test_76_invalid_or_nonexistent_ids_rejected(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        # Non-numeric ID
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": "abc",
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Invalid selection values", resp.data)
+
+        # Non-existent teacher ID
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": "99999",
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Selected teacher does not exist", resp.data)
+
+        # Non-existent subject ID
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": "99999",
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Selected subject does not exist", resp.data)
+
+        # Non-existent class section ID
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": "99999",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Selected class section does not exist", resp.data)
+
+    def test_77_student_blocked_with_403(self):
+        ids = self._setup_assignment_prerequisites()
+        with self.app.app_context():
+            student = User(name="Test Student", email="student_p5@vvp.edu", password_hash=generate_password_hash("stupass"), role="student")
+            db.session.add(student)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "student_p5@vvp.edu", "password": "stupass"})
+
+        # GET /admin/assignments -> 403
+        resp = self.client.get("/admin/assignments")
+        self.assertEqual(resp.status_code, 403)
+
+        # GET /admin/assignments/add -> 403
+        resp = self.client.get("/admin/assignments/add")
+        self.assertEqual(resp.status_code, 403)
+
+        # POST /admin/assignments/add -> 403
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_78_teacher_blocked_with_403(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "kulkarni@vvp.edu", "password": "teachpass"})
+
+        # GET /admin/assignments -> 403
+        resp = self.client.get("/admin/assignments")
+        self.assertEqual(resp.status_code, 403)
+
+        # GET /admin/assignments/add -> 403
+        resp = self.client.get("/admin/assignments/add")
+        self.assertEqual(resp.status_code, 403)
+
+        # POST /admin/assignments/add -> 403
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_79_unauthenticated_redirects_to_login(self):
+        ids = self._setup_assignment_prerequisites()
+
+        # GET /admin/assignments
+        resp = self.client.get("/admin/assignments", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.location)
+
+        # GET /admin/assignments/add
+        resp = self.client.get("/admin/assignments/add", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.location)
+
+        # POST /admin/assignments/add
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(ids["class_section_id"]),
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.location)
+
+    def test_80_simulated_db_error_triggers_rollback(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        with patch("extensions.db.session.commit", side_effect=Exception("Simulated DB Crash")):
+            resp = self.client.post(
+                "/admin/assignments/add",
+                data={
+                    "teacher_id": str(ids["teacher_id"]),
+                    "subject_id": str(ids["subject_id"]),
+                    "class_section_id": str(ids["class_section_id"]),
+                },
+            )
+            self.assertEqual(resp.status_code, 500)
+            self.assertIn(b"database error", resp.data)
+
+        # Confirm no row persisted
+        with self.app.app_context():
+            count = TeacherAssignment.query.count()
+            self.assertEqual(count, 0)
+
+    def test_81_academic_consistency_advisory_warning(self):
+        ids = self._setup_assignment_prerequisites()
+        self.client.post("/login", data={"email": "admin_p5@vvp.edu", "password": "adminpass"})
+
+        # Create a second department with a class section in Mechanical Engineering (ME)
+        with self.app.app_context():
+            me_dept = Department(name="Mechanical Engineering", code="ME")
+            db.session.add(me_dept)
+            db.session.commit()
+
+            me_class = ClassSection(department_id=me_dept.id, name="TY-ME-A", academic_year="2026-27", semester=5, year_of_study=3)
+            db.session.add(me_class)
+            db.session.commit()
+            me_class_id = me_class.id
+
+        # Assign CO subject to ME class section -> should create assignment with non-blocking advisory note
+        resp = self.client.post(
+            "/admin/assignments/add",
+            data={
+                "teacher_id": str(ids["teacher_id"]),
+                "subject_id": str(ids["subject_id"]),
+                "class_section_id": str(me_class_id),
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Note: Subject", resp.data)
+        self.assertIn(b"differs in department", resp.data)
+
+        with self.app.app_context():
+            assigned = TeacherAssignment.query.filter_by(
+                teacher_id=ids["teacher_id"],
+                subject_id=ids["subject_id"],
+                class_section_id=me_class_id,
+            ).first()
+            self.assertIsNotNone(assigned)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

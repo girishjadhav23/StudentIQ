@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block title %}Assign Teacher to Subject - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>➕ Allocate Faculty to Subject &amp; Class Section</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Link a faculty member with an academic subject and class section
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <a href="{{ url_for('admin.list_assignments') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">← Back to Assignments List</a>
+</div>
+
+{% set missing_prereqs = [] %}
+{% if not teachers %}
+    {% set _ = missing_prereqs.append("Faculty Members (none registered yet)") %}
+{% endif %}
+{% if not subjects %}
+    {% set _ = missing_prereqs.append("Subjects (none created yet)") %}
+{% endif %}
+{% if not class_sections %}
+    {% set _ = missing_prereqs.append("Class Sections (none created yet)") %}
+{% endif %}
+
+{% if missing_prereqs %}
+<div class="card" style="border-left: 4px solid #f59e0b; background: #fffbeb;">
+    <h3 style="color: #b45309; margin-bottom: 8px;">⚠️ Missing Prerequisites</h3>
+    <p style="color: #92400e; font-size: 14px; margin-bottom: 12px;">
+        You cannot create an assignment until the following prerequisite data exists:
+    </p>
+    <ul style="color: #92400e; font-size: 14px; margin-left: 20px; margin-bottom: 16px;">
+        {% for item in missing_prereqs %}
+        <li><strong>{{ item }}</strong></li>
+        {% endfor %}
+    </ul>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        {% if not teachers %}
+        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-teacher btn-sm">➕ Add Faculty</a>
+        {% endif %}
+        {% if not subjects %}
+        <a href="{{ url_for('subjects.add_subject') }}" class="btn btn-primary btn-sm">➕ Add Subject</a>
+        {% endif %}
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary btn-sm">Return to Admin Dashboard</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="card" style="max-width: 680px;">
+    <h2>Assignment Details</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
+        Select the faculty member, the course subject, and the target class section.
+    </p>
+
+    <form method="POST" action="{{ url_for('admin.add_assignment') }}">
+        <div class="form-group">
+            <label for="teacher_id">Faculty Member *</label>
+            <select id="teacher_id" name="teacher_id" required {% if not teachers %}disabled{% endif %}>
+                <option value="">-- Select Faculty Member --</option>
+                {% for t in teachers %}
+                <option value="{{ t.id }}" {% if form_data and form_data.get('teacher_id')|string == t.id|string %}selected{% endif %}>
+                    {{ t.user.name }} &mdash; {{ t.employee_id or "No Employee ID" }} ({{ t.department.code if t.department else "No Dept" }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="subject_id">Subject *</label>
+            <select id="subject_id" name="subject_id" required {% if not subjects %}disabled{% endif %}>
+                <option value="">-- Select Subject --</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}" {% if form_data and form_data.get('subject_id')|string == s.id|string %}selected{% endif %}>
+                    {{ s.name }}{% if s.code %} ({{ s.code }}){% endif %}{% if s.department %} &mdash; {{ s.department.code }}{% endif %}{% if s.semester %} (Sem {{ s.semester }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="class_section_id">Class Section *</label>
+            <select id="class_section_id" name="class_section_id" required {% if not class_sections %}disabled{% endif %}>
+                <option value="">-- Select Class Section --</option>
+                {% for cs in class_sections %}
+                <option value="{{ cs.id }}" {% if form_data and form_data.get('class_section_id')|string == cs.id|string %}selected{% endif %}>
+                    {{ cs.department.code if cs.department else "Dept" }} &mdash; Semester {{ cs.semester }} &mdash; Section {{ cs.name }} (AY: {{ cs.academic_year }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="submit" class="btn btn-primary" {% if missing_prereqs %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
+                Assign Faculty
+            </button>
+            <a href="{{ url_for('admin.list_assignments') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

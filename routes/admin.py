@@ -3,12 +3,16 @@ import string
 from functools import wraps
 from flask import Blueprint, abort, render_template, redirect, url_for, request, flash
 from flask_login import current_user
+from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash
 
 from extensions import db, login_manager
 from models.user import User
 from models.teacher_profile import TeacherProfile
 from models.department import Department
+from models.subject import Subject
+from models.class_section import ClassSection
+from models.teacher_assignment import TeacherAssignment
 
 admin = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -30,11 +34,13 @@ def admin_required(f):
 def dashboard():
     dept_count = Department.query.count()
     faculty_count = TeacherProfile.query.count()
+    assignment_count = TeacherAssignment.query.count()
     return render_template(
         "admin/dashboard.html",
         user=current_user,
         dept_count=dept_count,
         faculty_count=faculty_count,
+        assignment_count=assignment_count,
     )
 
 
@@ -276,6 +282,197 @@ def add_faculty():
         "admin/add_faculty.html",
         departments=departments,
         created_faculty=created_faculty,
+        error=error,
+        form_data={},
+    )
+
+
+# =========================================================================
+# TEACHER ASSIGNMENTS MANAGEMENT
+# =========================================================================
+
+@admin.route("/assignments")
+@admin_required
+def list_assignments():
+    assignments = (
+        TeacherAssignment.query
+        .options(
+            joinedload(TeacherAssignment.teacher).joinedload(TeacherProfile.user),
+            joinedload(TeacherAssignment.teacher).joinedload(TeacherProfile.department),
+            joinedload(TeacherAssignment.subject).joinedload(Subject.department),
+            joinedload(TeacherAssignment.class_section).joinedload(ClassSection.department),
+        )
+        .order_by(TeacherAssignment.created_at.desc())
+        .all()
+    )
+    return render_template("admin/assignments/list.html", assignments=assignments)
+
+
+@admin.route("/assignments/add", methods=["GET", "POST"])
+@admin_required
+def add_assignment():
+    teachers = (
+        TeacherProfile.query
+        .join(User)
+        .options(
+            joinedload(TeacherProfile.user),
+            joinedload(TeacherProfile.department),
+        )
+        .order_by(User.name.asc())
+        .all()
+    )
+    subjects = (
+        Subject.query
+        .options(joinedload(Subject.department))
+        .order_by(Subject.name.asc())
+        .all()
+    )
+    class_sections = (
+        ClassSection.query
+        .options(joinedload(ClassSection.department))
+        .order_by(ClassSection.name.asc())
+        .all()
+    )
+
+    error = None
+
+    if request.method == "POST":
+        teacher_id_raw = request.form.get("teacher_id", "").strip()
+        subject_id_raw = request.form.get("subject_id", "").strip()
+        class_section_id_raw = request.form.get("class_section_id", "").strip()
+
+        if not teacher_id_raw or not subject_id_raw or not class_section_id_raw:
+            error = "Teacher, subject, and class section are all required."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        try:
+            teacher_id = int(teacher_id_raw)
+            subject_id = int(subject_id_raw)
+            class_section_id = int(class_section_id_raw)
+        except (ValueError, TypeError):
+            error = "Invalid selection values."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        teacher = db.session.get(TeacherProfile, teacher_id)
+        subject = db.session.get(Subject, subject_id)
+        class_section = db.session.get(ClassSection, class_section_id)
+
+        if not teacher:
+            error = "Selected teacher does not exist."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        if not subject:
+            error = "Selected subject does not exist."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        if not class_section:
+            error = "Selected class section does not exist."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        existing = TeacherAssignment.query.filter_by(
+            teacher_id=teacher.id,
+            subject_id=subject.id,
+            class_section_id=class_section.id,
+        ).first()
+
+        if existing:
+            error = f"Teacher {teacher.user.name} is already assigned to {subject.name} for {class_section.name}."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 400
+
+        try:
+            assignment = TeacherAssignment(
+                teacher_id=teacher.id,
+                subject_id=subject.id,
+                class_section_id=class_section.id,
+            )
+            db.session.add(assignment)
+            db.session.commit()
+
+            # Optional advisory warning if department mismatch
+            if (
+                subject.department_id
+                and class_section.department_id
+                and subject.department_id != class_section.department_id
+            ):
+                flash(
+                    f"Note: Subject '{subject.name}' ({subject.department.code if subject.department else 'N/A'}) "
+                    f"differs in department from Class Section '{class_section.name}' "
+                    f"({class_section.department.code if class_section.department else 'N/A'}). "
+                    f"Assignment created successfully.",
+                    "info",
+                )
+            else:
+                flash(
+                    f"Successfully assigned {teacher.user.name} to {subject.name} for {class_section.name}.",
+                    "success",
+                )
+            return redirect(url_for("admin.list_assignments"))
+        except Exception:
+            db.session.rollback()
+            error = "Failed to create teacher assignment due to a database error."
+            flash(error, "error")
+            return render_template(
+                "admin/assignments/add.html",
+                teachers=teachers,
+                subjects=subjects,
+                class_sections=class_sections,
+                error=error,
+                form_data=request.form,
+            ), 500
+
+    return render_template(
+        "admin/assignments/add.html",
+        teachers=teachers,
+        subjects=subjects,
+        class_sections=class_sections,
         error=error,
         form_data={},
     )

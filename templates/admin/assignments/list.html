@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+
+{% block title %}Teacher Assignments - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📋 Faculty Subject Assignments</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Allocate faculty members to subjects and class sections
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-primary">➕ Add Assignment</a>
+        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-teacher">➕ Add Faculty</a>
+    </div>
+    <a href="{{ url_for('admin.dashboard') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">← Back to Admin Panel</a>
+</div>
+
+{% if assignments %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Teacher Name</th>
+                <th>Employee ID</th>
+                <th>Subject</th>
+                <th>Class Section</th>
+                <th>Department</th>
+                <th>Assigned Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assignments %}
+            <tr>
+                <td><strong>{{ a.teacher.user.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ a.teacher.employee_id or "N/A" }}
+                    </span>
+                </td>
+                <td>
+                    <strong>{{ a.subject.name }}</strong>
+                    {% if a.subject.code %}
+                        <span style="color: #64748b; font-size: 12px;">({{ a.subject.code }})</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span style="color: #0f172a; font-weight: 500;">
+                        {{ a.class_section.department.code if a.class_section.department else "N/A" }} &mdash; Sem {{ a.class_section.semester }} &mdash; Section {{ a.class_section.name }}
+                    </span>
+                    <span style="color: #64748b; font-size: 12px; display: block;">
+                        AY: {{ a.class_section.academic_year }} (Year {{ a.class_section.year_of_study }})
+                    </span>
+                </td>
+                <td>
+                    {{ a.teacher.department.name if a.teacher.department else (a.subject.department.name if a.subject.department else "N/A") }}
+                </td>
+                <td style="color: #64748b; font-size: 13px;">
+                    {{ a.created_at.strftime('%d %b %Y') if a.created_at else "N/A" }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 40px 20px;">
+    <div style="font-size: 40px; margin-bottom: 12px;">📋</div>
+    <h2 style="margin-bottom: 8px;">No Assignments Found</h2>
+    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 20px auto;">
+        No faculty members have been assigned to subjects or class sections yet.
+    </p>
+    <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-primary">➕ Create First Assignment</a>
+</div>
+{% endif %}
+{% endblock %}

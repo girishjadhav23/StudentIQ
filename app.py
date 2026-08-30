@@ -12,6 +12,7 @@ from models.class_section import ClassSection
 from models.student_profile import StudentProfile
 from models.teacher_profile import TeacherProfile
 from models.class_enrollment import ClassEnrollment
+from models.teacher_assignment import TeacherAssignment
 from routes.auth import auth
 from routes.dashboard import dashboard
 from routes.subjects import subjects
