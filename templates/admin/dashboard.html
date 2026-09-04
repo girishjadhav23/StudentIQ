@@ -1,45 +1,194 @@
 {% extends "layout.html" %}
 
-{% block title %}Admin Dashboard - StudentIQ{% endblock %}
+{% block title %}Admin &amp; HOD Workspace - StudentIQ{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Admin &amp; HOD Workspace</h1>
-    <p>
-        <span class="user-role-badge role-admin">Administrator</span>
-        &bull; Logged in as: <strong>{{ user.name }}</strong> ({{ user.email }})
-    </p>
-</div>
+<!-- Main Header / Hero Banner -->
+<div class="admin-hero-banner">
+    <div>
+        <div class="admin-hero-eyebrow">Academic Administration</div>
+        <h1 class="admin-hero-title">Admin &amp; HOD Workspace</h1>
+        <p class="admin-hero-subtitle">
+            Institutional management, academic planning, and faculty provisioning for V.V.P. Polytechnic.
+        </p>
+    </div>
 
-<div class="card">
-    <h2>⚡ Academic Administration &amp; Provisioning</h2>
-    <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
-        Manage academic departments, faculty provisioning, and institutional configuration.
-    </p>
-    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <a href="{{ url_for('admin.departments') }}" class="btn btn-primary">🏛️ Manage Departments</a>
-        <a href="{{ url_for('admin.add_department') }}" class="btn btn-secondary">➕ Add Department</a>
-        <a href="{{ url_for('admin.list_class_sections') }}" class="btn btn-primary">🏫 Class Sections</a>
-        <a href="{{ url_for('admin.add_class_section') }}" class="btn btn-secondary">➕ Add Section</a>
-        <a href="{{ url_for('admin.add_faculty') }}" class="btn btn-teacher">➕ Add Faculty Member</a>
-        <a href="{{ url_for('admin.list_subjects') }}" class="btn btn-primary">📚 Course Subjects</a>
-        <a href="{{ url_for('admin.add_subject') }}" class="btn btn-secondary">➕ Add Subject</a>
-        <a href="{{ url_for('admin.list_assignments') }}" class="btn btn-primary">📋 Manage Assignments</a>
-        <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-teacher">➕ Assign Teacher</a>
+    <!-- Academic Session Panel (Static Presentational UI) -->
+    <div class="admin-session-panel">
+        <div class="admin-session-item">
+            <span class="admin-session-label">Academic Year</span>
+            <span class="admin-session-value">2026-27</span>
+        </div>
+        <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.15);"></div>
+        <div class="admin-session-item">
+            <span class="admin-session-label">Current Term</span>
+            <span class="admin-session-value">Odd Semester</span>
+        </div>
+        <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.15);"></div>
+        <div>
+            <span class="admin-status-badge">● Active Session</span>
+        </div>
     </div>
 </div>
 
-<div class="card">
-    <h2>🛡️ Administrator Confirmation</h2>
-    <p style="color: #334155; font-size: 15px; margin-bottom: 14px;">
-        Authentication verified. You are securely authenticated as an <strong>Administrator</strong>.
-    </p>
-    <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 14px 18px; border-radius: 6px; font-size: 14px; color: #475569; line-height: 1.6;">
-        <strong>Phase 2 Admin Foundation Active:</strong>
-        <br>
-        • Role authorization &amp; protected workspace verified.
-        <br>
-        • Faculty provisioning and academic management tools active.
+<!-- 4 Statistics Cards -->
+<div class="admin-stats-grid">
+    <div class="admin-stat-card">
+        <div class="admin-stat-header">
+            <div class="admin-stat-icon">🏛️</div>
+            <a href="{{ url_for('admin.departments') }}" class="admin-stat-link">View All →</a>
+        </div>
+        <div class="admin-stat-value">{{ dept_count or 0 }}</div>
+        <div class="admin-stat-label">Academic Departments</div>
+    </div>
+
+    <div class="admin-stat-card">
+        <div class="admin-stat-header">
+            <div class="admin-stat-icon">🏫</div>
+            <a href="{{ url_for('admin.list_class_sections') }}" class="admin-stat-link">View All →</a>
+        </div>
+        <div class="admin-stat-value">{{ section_count or 0 }}</div>
+        <div class="admin-stat-label">Class Sections</div>
+    </div>
+
+    <div class="admin-stat-card">
+        <div class="admin-stat-header">
+            <div class="admin-stat-icon">👨‍🏫</div>
+            <a href="{{ url_for('admin.add_faculty') }}" class="admin-stat-link">Provision →</a>
+        </div>
+        <div class="admin-stat-value">{{ faculty_count or 0 }}</div>
+        <div class="admin-stat-label">Faculty Members</div>
+    </div>
+
+    <div class="admin-stat-card">
+        <div class="admin-stat-header">
+            <div class="admin-stat-icon">📚</div>
+            <a href="{{ url_for('admin.list_subjects') }}" class="admin-stat-link">View All →</a>
+        </div>
+        <div class="admin-stat-value">{{ subject_count or 0 }}</div>
+        <div class="admin-stat-label">Course Subjects</div>
+    </div>
+</div>
+
+<!-- Academic Management Section -->
+<div class="admin-section-heading">
+    <h2>🏛️ Academic Management</h2>
+    <p>Core institutional entities, curriculum definitions, and cohort structures</p>
+</div>
+
+<div class="admin-mgmt-grid">
+    <!-- Departments Card -->
+    <div class="admin-mgmt-card">
+        <div class="admin-mgmt-icon-row">
+            <span class="admin-mgmt-icon">🏛️</span>
+            <span class="admin-mgmt-title">Departments</span>
+        </div>
+        <p class="admin-mgmt-desc">
+            Configure institutional branches, departmental codes, and academic units.
+        </p>
+        <div class="admin-mgmt-actions">
+            <a href="{{ url_for('admin.departments') }}" class="btn-mgmt-primary">Manage Departments</a>
+            <a href="{{ url_for('admin.add_department') }}" class="btn-mgmt-secondary">➕ Add Department</a>
+        </div>
+    </div>
+
+    <!-- Class Sections Card -->
+    <div class="admin-mgmt-card accent-sections">
+        <div class="admin-mgmt-icon-row">
+            <span class="admin-mgmt-icon">🏫</span>
+            <span class="admin-mgmt-title">Class Sections</span>
+        </div>
+        <p class="admin-mgmt-desc">
+            Organize classroom cohorts, academic years, semesters, and study levels.
+        </p>
+        <div class="admin-mgmt-actions">
+            <a href="{{ url_for('admin.list_class_sections') }}" class="btn-mgmt-primary" style="background: #6366f1;">Manage Sections</a>
+            <a href="{{ url_for('admin.add_class_section') }}" class="btn-mgmt-secondary">➕ Add Section</a>
+        </div>
+    </div>
+
+    <!-- Course Subjects Card -->
+    <div class="admin-mgmt-card accent-subjects">
+        <div class="admin-mgmt-icon-row">
+            <span class="admin-mgmt-icon">📚</span>
+            <span class="admin-mgmt-title">Course Subjects</span>
+        </div>
+        <p class="admin-mgmt-desc">
+            Define institutional curriculum, syllabus codes, and semester allocations.
+        </p>
+        <div class="admin-mgmt-actions">
+            <a href="{{ url_for('admin.list_subjects') }}" class="btn-mgmt-primary" style="background: #d97706;">Manage Subjects</a>
+            <a href="{{ url_for('admin.add_subject') }}" class="btn-mgmt-secondary">➕ Add Subject</a>
+        </div>
+    </div>
+
+    <!-- Faculty Members Card -->
+    <div class="admin-mgmt-card accent-faculty">
+        <div class="admin-mgmt-icon-row">
+            <span class="admin-mgmt-icon">👨‍🏫</span>
+            <span class="admin-mgmt-title">Faculty Members</span>
+        </div>
+        <p class="admin-mgmt-desc">
+            Provision teacher accounts, employee IDs, and initial temporary credentials.
+        </p>
+        <div class="admin-mgmt-actions">
+            <a href="{{ url_for('admin.add_faculty') }}" class="btn-mgmt-primary" style="background: #059669;">Provision Faculty</a>
+            <a href="{{ url_for('admin.add_faculty') }}" class="btn-mgmt-secondary">➕ Add Member</a>
+        </div>
+    </div>
+</div>
+
+<!-- Academic Operations Section -->
+<div class="admin-section-heading">
+    <h2>⚡ Academic Operations &amp; Allocations</h2>
+    <p>Faculty subject allocations and cross-department teaching assignments</p>
+</div>
+
+<div class="admin-ops-grid">
+    <!-- Manage Allocations -->
+    <div class="admin-ops-card">
+        <div class="admin-ops-info">
+            <div class="admin-ops-icon">📋</div>
+            <div>
+                <div class="admin-ops-title">Faculty Subject Allocations</div>
+                <div class="admin-ops-desc">
+                    Review active teacher allocations across class cohorts, subjects, and departments.
+                </div>
+            </div>
+        </div>
+        <a href="{{ url_for('admin.list_assignments') }}" class="btn btn-primary btn-sm" style="white-space: nowrap;">
+            View Allocations
+        </a>
+    </div>
+
+    <!-- Assign Faculty -->
+    <div class="admin-ops-card">
+        <div class="admin-ops-info">
+            <div class="admin-ops-icon">➕</div>
+            <div>
+                <div class="admin-ops-title">Allocate Teacher to Class</div>
+                <div class="admin-ops-desc">
+                    Assign faculty members to specific subjects and class sections with conflict checks.
+                </div>
+            </div>
+        </div>
+        <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-teacher btn-sm" style="white-space: nowrap;">
+            Assign Teacher
+        </a>
+    </div>
+</div>
+
+<!-- Administrator Confirmation Status Bar -->
+<div class="admin-confirm-bar">
+    <div class="admin-confirm-left">
+        <span style="font-size: 16px;">🛡️</span>
+        <span>
+            <strong>Administrator Confirmation:</strong> Authenticated as <strong>{{ user.name }}</strong> ({{ user.email }}) &bull; <span style="color: #93c5fd;">Phase 2 Admin Foundation Active</span>
+        </span>
+    </div>
+    <div class="admin-confirm-right">
+        <span class="admin-status-badge">● Role Verified</span>
+        <span>&bull; Full Provisioning &amp; Academic Access Granted</span>
     </div>
 </div>
 {% endblock %}

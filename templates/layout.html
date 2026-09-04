@@ -15,10 +15,20 @@
 
         <ul class="sidebar-nav">
             {% if current_user.is_admin %}
-            <li><a href="{{ url_for('admin.dashboard') }}" {% if request.endpoint and 'admin' in request.endpoint %}class="active"{% endif %}>🛡️ Admin Panel</a></li>
-            {% endif %}
+            <li><a href="{{ url_for('admin.dashboard') }}" {% if request.endpoint == 'admin.dashboard' %}class="active"{% endif %}>📊 Dashboard</a></li>
+            <li><a href="{{ url_for('admin.departments') }}" {% if request.endpoint and 'department' in request.endpoint %}class="active"{% endif %}>🏛️ Departments</a></li>
+            <li><a href="{{ url_for('admin.list_class_sections') }}" {% if request.endpoint and 'section' in request.endpoint %}class="active"{% endif %}>🏫 Class Sections</a></li>
+            <li><a href="{{ url_for('admin.add_faculty') }}" {% if request.endpoint and 'faculty' in request.endpoint %}class="active"{% endif %}>👨‍🏫 Faculty Members</a></li>
+            <li><a href="{{ url_for('admin.list_subjects') }}" {% if request.endpoint and 'subject' in request.endpoint %}class="active"{% endif %}>📚 Course Subjects</a></li>
+            <li><a href="{{ url_for('admin.list_assignments') }}" {% if request.endpoint and 'assignment' in request.endpoint %}class="active"{% endif %}>📋 Assignments</a></li>
+            {% elif current_user.is_teacher %}
             <li><a href="{{ url_for('dashboard.dashboard_home') }}" {% if request.endpoint == 'dashboard.dashboard_home' %}class="active"{% endif %}>📊 Dashboard</a></li>
-            <li><a href="{{ url_for('subjects.list_subjects') }}" {% if request.endpoint and 'subjects' in request.endpoint %}class="active"{% endif %}>📚 Subjects</a></li>
+            <li><a href="{{ url_for('subjects.list_subjects') }}" {% if request.endpoint and 'subjects' in request.endpoint %}class="active"{% endif %}>📚 Assigned Subjects</a></li>
+            <li><a href="{{ url_for('attendance.teacher_dashboard') }}" {% if request.endpoint and 'attendance' in request.endpoint %}class="active"{% endif %}>✏️ Attendance Portal</a></li>
+            {% else %}
+            <li><a href="{{ url_for('dashboard.dashboard_home') }}" {% if request.endpoint == 'dashboard.dashboard_home' %}class="active"{% endif %}>📊 Dashboard</a></li>
+            <li><a href="{{ url_for('subjects.list_subjects') }}" {% if request.endpoint and 'subjects' in request.endpoint %}class="active"{% endif %}>📚 Curriculum Subjects</a></li>
+            {% endif %}
         </ul>
 
         <div class="sidebar-user">

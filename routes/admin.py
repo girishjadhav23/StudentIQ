@@ -35,12 +35,16 @@ def dashboard():
     dept_count = Department.query.count()
     faculty_count = TeacherProfile.query.count()
     assignment_count = TeacherAssignment.query.count()
+    section_count = ClassSection.query.count()
+    subject_count = Subject.query.count()
     return render_template(
         "admin/dashboard.html",
         user=current_user,
         dept_count=dept_count,
         faculty_count=faculty_count,
         assignment_count=assignment_count,
+        section_count=section_count,
+        subject_count=subject_count,
     )
 
 
