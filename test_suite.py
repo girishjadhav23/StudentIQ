@@ -1930,9 +1930,267 @@ class TestStudentIQ(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"No Subjects Allocated", resp.data)
 
+    # =========================================================================
+    # CLASS SECTION CRUD TESTS
+    # =========================================================================
+
+    def _setup_section_admin(self):
+        with self.app.app_context():
+            admin = User(name="Section Admin", email="sec_admin@vvp.edu", password_hash=generate_password_hash("pass"), role="admin")
+            dept = Department(name="Computer Engineering", code="CO_SEC")
+            db.session.add_all([admin, dept])
+            db.session.commit()
+            return {"admin_id": admin.id, "dept_id": dept.id}
+
+    def test_93_admin_list_class_sections(self):
+        info = self._setup_section_admin()
+        with self.app.app_context():
+            cs = ClassSection(department_id=info["dept_id"], name="FY-CO-A", academic_year="2026-27", semester=1, year_of_study=1)
+            db.session.add(cs)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+        resp = self.client.get("/admin/class-sections")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"FY-CO-A", resp.data)
+        self.assertIn(b"CO_SEC", resp.data)
+        self.assertIn(b"Semester 1", resp.data)
+
+    def test_94_admin_add_class_section_success(self):
+        info = self._setup_section_admin()
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "SY-CO-B",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "3",
+                "year_of_study": "2",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"SY-CO-B", resp.data)
+        self.assertIn(b"created successfully", resp.data)
+
+        with self.app.app_context():
+            cs = ClassSection.query.filter_by(name="SY-CO-B").first()
+            self.assertIsNotNone(cs)
+            self.assertEqual(cs.semester, 3)
+            self.assertEqual(cs.year_of_study, 2)
+
+    def test_95_admin_add_class_section_validation_errors(self):
+        info = self._setup_section_admin()
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+
+        # Missing name
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "3",
+                "year_of_study": "2",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"All fields", resp.data)
+
+        # Invalid semester (> 8)
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "Invalid Sem",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "9",
+                "year_of_study": "2",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Semester must be between 1 and 8", resp.data)
+
+        # Invalid year of study (> 4)
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "Invalid Year",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "3",
+                "year_of_study": "5",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Year of study must be between 1 and 4", resp.data)
+
+        # Nonexistent department
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "Bad Dept",
+                "department_id": "99999",
+                "academic_year": "2026-27",
+                "semester": "3",
+                "year_of_study": "2",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"Selected department does not exist", resp.data)
+
+    def test_96_admin_add_class_section_duplicate_rejection(self):
+        info = self._setup_section_admin()
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+
+        # Add initial section
+        self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "TY-CO-A",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "5",
+                "year_of_study": "3",
+            },
+        )
+
+        # Attempt to add duplicate section with same dept, name, academic year, semester
+        resp = self.client.post(
+            "/admin/class-sections/add",
+            data={
+                "name": "TY-CO-A",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "5",
+                "year_of_study": "3",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+    def test_97_admin_edit_class_section_success(self):
+        info = self._setup_section_admin()
+        with self.app.app_context():
+            cs = ClassSection(department_id=info["dept_id"], name="Old Name", academic_year="2026-27", semester=3, year_of_study=2)
+            db.session.add(cs)
+            db.session.commit()
+            cs_id = cs.id
+
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+        resp = self.client.post(
+            f"/admin/class-sections/{cs_id}/edit",
+            data={
+                "name": "Updated Section Name",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "4",
+                "year_of_study": "2",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Updated Section Name", resp.data)
+        self.assertIn(b"updated successfully", resp.data)
+
+        with self.app.app_context():
+            updated = db.session.get(ClassSection, cs_id)
+            self.assertEqual(updated.name, "Updated Section Name")
+            self.assertEqual(updated.semester, 4)
+
+    def test_98_admin_edit_class_section_duplicate_rejection(self):
+        info = self._setup_section_admin()
+        with self.app.app_context():
+            cs1 = ClassSection(department_id=info["dept_id"], name="Sec 1", academic_year="2026-27", semester=3, year_of_study=2)
+            cs2 = ClassSection(department_id=info["dept_id"], name="Sec 2", academic_year="2026-27", semester=3, year_of_study=2)
+            db.session.add_all([cs1, cs2])
+            db.session.commit()
+            cs2_id = cs2.id
+
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+        # Attempt to rename cs2 to match cs1
+        resp = self.client.post(
+            f"/admin/class-sections/{cs2_id}/edit",
+            data={
+                "name": "Sec 1",
+                "department_id": str(info["dept_id"]),
+                "academic_year": "2026-27",
+                "semester": "3",
+                "year_of_study": "2",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"already exists", resp.data)
+
+    def test_99_admin_delete_class_section_success_when_unlinked(self):
+        info = self._setup_section_admin()
+        with self.app.app_context():
+            cs = ClassSection(department_id=info["dept_id"], name="To Delete", academic_year="2026-27", semester=1, year_of_study=1)
+            db.session.add(cs)
+            db.session.commit()
+            cs_id = cs.id
+
+        self.client.post("/login", data={"email": "sec_admin@vvp.edu", "password": "pass"})
+        resp = self.client.post(f"/admin/class-sections/{cs_id}/delete", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"deleted successfully", resp.data)
+
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(ClassSection, cs_id))
+
+    def test_100_admin_delete_class_section_blocked_by_dependencies(self):
+        ids = self._setup_phase6_environment()
+        # Section A has 2 enrolled students and 1 teacher assignment
+        with self.app.app_context():
+            admin = User(name="Admin Del", email="adm_del_sec@vvp.edu", password_hash=generate_password_hash("p"), role="admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        self.client.post("/login", data={"email": "adm_del_sec@vvp.edu", "password": "p"})
+        resp = self.client.post(f"/admin/class-sections/{ids['sec_a_id']}/delete", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Cannot delete class section", resp.data)
+        self.assertIn(b"enrolled student(s)", resp.data)
+        self.assertIn(b"faculty allocation(s)", resp.data)
+
+        with self.app.app_context():
+            # Section must still exist
+            self.assertIsNotNone(db.session.get(ClassSection, ids["sec_a_id"]))
+
+    def test_101_non_admin_blocked_from_class_section_routes(self):
+        info = self._setup_section_admin()
+        with self.app.app_context():
+            student = User(name="Student User", email="stu_sec@vvp.edu", password_hash=generate_password_hash("p"), role="student")
+            teacher = User(name="Teacher User", email="teach_sec@vvp.edu", password_hash=generate_password_hash("p"), role="teacher")
+            cs = ClassSection(department_id=info["dept_id"], name="Protected Sec", academic_year="2026-27", semester=1, year_of_study=1)
+            db.session.add_all([student, teacher, cs])
+            db.session.commit()
+            cs_id = cs.id
+
+        # 1. Unauthenticated -> 302 to login
+        resp = self.client.get("/admin/class-sections")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.location)
+
+        # 2. Student -> 403
+        self.client.post("/login", data={"email": "stu_sec@vvp.edu", "password": "p"})
+        self.assertEqual(self.client.get("/admin/class-sections").status_code, 403)
+        self.assertEqual(self.client.get("/admin/class-sections/add").status_code, 403)
+        self.assertEqual(self.client.post(f"/admin/class-sections/{cs_id}/delete").status_code, 403)
+        self.client.get("/logout")
+
+        # 3. Teacher -> 403
+        self.client.post("/login", data={"email": "teach_sec@vvp.edu", "password": "p"})
+        self.assertEqual(self.client.get("/admin/class-sections").status_code, 403)
+        self.assertEqual(self.client.get("/admin/class-sections/add").status_code, 403)
+        self.assertEqual(self.client.post(f"/admin/class-sections/{cs_id}/delete").status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

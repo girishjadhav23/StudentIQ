@@ -558,3 +558,245 @@ def add_subject():
 
     return render_template("admin/subjects/add.html", departments=departments, error=error, form_data={})
 
+
+# =========================================================================
+# ADMIN CLASS SECTION MANAGEMENT
+# =========================================================================
+
+@admin.route("/class-sections")
+@admin.route("/sections")
+@admin_required
+def list_class_sections():
+    all_sections = (
+        ClassSection.query
+        .options(
+            joinedload(ClassSection.department),
+            joinedload(ClassSection.enrollments),
+            joinedload(ClassSection.teacher_assignments),
+        )
+        .order_by(ClassSection.academic_year.desc(), ClassSection.name.asc())
+        .all()
+    )
+    return render_template("admin/sections/list.html", sections=all_sections)
+
+
+@admin.route("/class-sections/add", methods=["GET", "POST"])
+@admin.route("/sections/add", methods=["GET", "POST"])
+@admin_required
+def add_class_section():
+    departments = Department.query.order_by(Department.name.asc()).all()
+    error = None
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        department_id_raw = request.form.get("department_id", "").strip()
+        academic_year = request.form.get("academic_year", "").strip()
+        semester_raw = request.form.get("semester", "").strip()
+        year_of_study_raw = request.form.get("year_of_study", "").strip()
+
+        if not name or not department_id_raw or not academic_year or not semester_raw or not year_of_study_raw:
+            error = "All fields (Section Name, Department, Academic Year, Semester, Year of Study) are required."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            dept_id = int(department_id_raw)
+            dept = db.session.get(Department, dept_id)
+            if not dept:
+                error = "Selected department does not exist."
+                flash(error, "error")
+                return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid department."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            semester = int(semester_raw)
+            if semester < 1 or semester > 8:
+                error = "Semester must be between 1 and 8."
+                flash(error, "error")
+                return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid semester value."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            year_of_study = int(year_of_study_raw)
+            if year_of_study < 1 or year_of_study > 4:
+                error = "Year of study must be between 1 and 4."
+                flash(error, "error")
+                return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid year of study value."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        # Duplicate check: same Department + Name + Academic Year + Semester
+        existing = ClassSection.query.filter(
+            ClassSection.department_id == dept_id,
+            db.func.lower(ClassSection.name) == name.lower(),
+            ClassSection.academic_year == academic_year,
+            ClassSection.semester == semester,
+        ).first()
+        if existing:
+            error = f"A class section '{name}' already exists for department {dept.code} in semester {semester} ({academic_year})."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            section = ClassSection(
+                department_id=dept_id,
+                name=name,
+                academic_year=academic_year,
+                semester=semester,
+                year_of_study=year_of_study,
+            )
+            db.session.add(section)
+            db.session.commit()
+            flash(f"Class section '{section.name}' ({dept.code}) created successfully!", "success")
+            return redirect(url_for("admin.list_class_sections"))
+        except Exception:
+            db.session.rollback()
+            error = "Failed to create class section due to a database error."
+            flash(error, "error")
+            return render_template("admin/sections/add.html", departments=departments, error=error, form_data=request.form), 500
+
+    return render_template("admin/sections/add.html", departments=departments, error=error, form_data={})
+
+
+@admin.route("/class-sections/<int:section_id>/edit", methods=["GET", "POST"])
+@admin.route("/sections/<int:section_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_class_section(section_id):
+    section = db.session.get(ClassSection, section_id)
+    if not section:
+        abort(404)
+
+    departments = Department.query.order_by(Department.name.asc()).all()
+    error = None
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        department_id_raw = request.form.get("department_id", "").strip()
+        academic_year = request.form.get("academic_year", "").strip()
+        semester_raw = request.form.get("semester", "").strip()
+        year_of_study_raw = request.form.get("year_of_study", "").strip()
+
+        if not name or not department_id_raw or not academic_year or not semester_raw or not year_of_study_raw:
+            error = "All fields (Section Name, Department, Academic Year, Semester, Year of Study) are required."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            dept_id = int(department_id_raw)
+            dept = db.session.get(Department, dept_id)
+            if not dept:
+                error = "Selected department does not exist."
+                flash(error, "error")
+                return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid department."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            semester = int(semester_raw)
+            if semester < 1 or semester > 8:
+                error = "Semester must be between 1 and 8."
+                flash(error, "error")
+                return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid semester value."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            year_of_study = int(year_of_study_raw)
+            if year_of_study < 1 or year_of_study > 4:
+                error = "Year of study must be between 1 and 4."
+                flash(error, "error")
+                return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+        except ValueError:
+            error = "Invalid year of study value."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+
+        # Duplicate check excluding self
+        existing = ClassSection.query.filter(
+            ClassSection.department_id == dept_id,
+            db.func.lower(ClassSection.name) == name.lower(),
+            ClassSection.academic_year == academic_year,
+            ClassSection.semester == semester,
+            ClassSection.id != section.id,
+        ).first()
+        if existing:
+            error = f"A class section '{name}' already exists for department {dept.code} in semester {semester} ({academic_year})."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 400
+
+        try:
+            section.name = name
+            section.department_id = dept_id
+            section.academic_year = academic_year
+            section.semester = semester
+            section.year_of_study = year_of_study
+            db.session.commit()
+            flash(f"Class section '{section.name}' updated successfully!", "success")
+            return redirect(url_for("admin.list_class_sections"))
+        except Exception:
+            db.session.rollback()
+            error = "Failed to update class section due to a database error."
+            flash(error, "error")
+            return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=request.form), 500
+
+    form_data = {
+        "name": section.name,
+        "department_id": section.department_id,
+        "academic_year": section.academic_year,
+        "semester": section.semester,
+        "year_of_study": section.year_of_study,
+    }
+    return render_template("admin/sections/edit.html", section=section, departments=departments, error=error, form_data=form_data)
+
+
+@admin.route("/class-sections/<int:section_id>/delete", methods=["POST"])
+@admin.route("/sections/<int:section_id>/delete", methods=["POST"])
+@admin_required
+def delete_class_section(section_id):
+    section = db.session.get(ClassSection, section_id)
+    if not section:
+        abort(404)
+
+    enrollment_count = len(section.enrollments)
+    assignment_count = len(section.teacher_assignments)
+    attendance_count = len(section.attendances)
+
+    if enrollment_count > 0 or assignment_count > 0 or attendance_count > 0:
+        reasons = []
+        if enrollment_count > 0:
+            reasons.append(f"{enrollment_count} enrolled student(s)")
+        if assignment_count > 0:
+            reasons.append(f"{assignment_count} faculty allocation(s)")
+        if attendance_count > 0:
+            reasons.append(f"{attendance_count} attendance record(s)")
+
+        flash(
+            f"Cannot delete class section '{section.name}' because it is associated with {', '.join(reasons)}.",
+            "error",
+        )
+        return redirect(url_for("admin.list_class_sections"))
+
+    try:
+        sec_name = section.name
+        db.session.delete(section)
+        db.session.commit()
+        flash(f"Class section '{sec_name}' deleted successfully!", "success")
+    except Exception:
+        db.session.rollback()
+        flash(f"Failed to delete class section '{section.name}' due to a database error.", "error")
+
+    return redirect(url_for("admin.list_class_sections"))
+
+

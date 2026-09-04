@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Class Section - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>➕ Create Academic Class Section</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Define a classroom cohort for student enrollments and curriculum assignments
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <a href="{{ url_for('admin.list_class_sections') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">← Back to Class Sections</a>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <h2>Class Section Details</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
+        Specify the section name, academic branch, academic year, semester, and study year.
+    </p>
+
+    <form method="POST" action="{{ url_for('admin.add_class_section') }}">
+        <div class="form-group">
+            <label for="name">Section Name *</label>
+            <input type="text" id="name" name="name" placeholder="e.g. TY-CO-A or SY-IF-B" value="{{ form_data.name if form_data else '' }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="department_id">Academic Department *</label>
+            <select id="department_id" name="department_id" required>
+                <option value="">-- Select Department --</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if form_data and form_data.get('department_id')|string == d.id|string %}selected{% endif %}>
+                    {{ d.name }} ({{ d.code }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="academic_year">Academic Year *</label>
+            <input type="text" id="academic_year" name="academic_year" placeholder="e.g. 2026-27" value="{{ form_data.academic_year if form_data else '2026-27' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="semester">Curriculum Semester (1 - 8) *</label>
+            <input type="number" id="semester" name="semester" min="1" max="8" placeholder="e.g. 5" value="{{ form_data.semester if form_data else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="year_of_study">Year of Study (1 - 4) *</label>
+            <input type="number" id="year_of_study" name="year_of_study" min="1" max="4" placeholder="e.g. 3 (Third Year)" value="{{ form_data.year_of_study if form_data else '' }}" required>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="submit" class="btn btn-primary">Save Class Section</button>
+            <a href="{{ url_for('admin.list_class_sections') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

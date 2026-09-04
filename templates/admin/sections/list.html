@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+
+{% block title %}Class Sections - StudentIQ Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏫 Academic Class Sections</h1>
+    <p>
+        <span class="user-role-badge role-admin">Administrator</span>
+        &bull; Manage classroom cohorts, academic years, semesters, and department sections
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('admin.add_class_section') }}" class="btn btn-primary">➕ Add Class Section</a>
+        <a href="{{ url_for('admin.add_assignment') }}" class="btn btn-teacher">➕ Allocate Teacher</a>
+    </div>
+    <a href="{{ url_for('admin.dashboard') }}" style="color: #64748b; font-size: 14px; text-decoration: none;">← Back to Admin Panel</a>
+</div>
+
+{% if sections %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Section Name</th>
+                <th>Department</th>
+                <th>Academic Year</th>
+                <th>Semester</th>
+                <th>Year of Study</th>
+                <th>Enrolled Students</th>
+                <th>Teacher Allocations</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sections %}
+            <tr>
+                <td><strong>{{ s.name }}</strong></td>
+                <td>
+                    <span style="background: #f1f5f9; color: #0f172a; font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        {{ s.department.code if s.department else "N/A" }}
+                    </span>
+                    <span style="color: #64748b; font-size: 13px; display: block;">
+                        {{ s.department.name if s.department else "" }}
+                    </span>
+                </td>
+                <td>{{ s.academic_year }}</td>
+                <td>Semester {{ s.semester }}</td>
+                <td>Year {{ s.year_of_study }}</td>
+                <td>{{ s.enrollments | length }} student(s)</td>
+                <td>{{ s.teacher_assignments | length }} allocation(s)</td>
+                <td class="actions">
+                    <a href="{{ url_for('admin.edit_class_section', section_id=s.id) }}" class="btn btn-primary btn-sm">Edit</a>
+                    <form method="POST" action="{{ url_for('admin.delete_class_section', section_id=s.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete the class section {{ s.name }}?');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 40px 20px;">
+    <div style="font-size: 40px; margin-bottom: 12px;">🏫</div>
+    <h2 style="margin-bottom: 8px;">No Class Sections Found</h2>
+    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 20px auto;">
+        You haven't created any academic class sections yet. Create class sections to enroll students and allocate faculty teaching assignments.
+    </p>
+    <a href="{{ url_for('admin.add_class_section') }}" class="btn btn-primary">➕ Create First Class Section</a>
+</div>
+{% endif %}
+{% endblock %}

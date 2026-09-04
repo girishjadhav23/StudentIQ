@@ -23,7 +23,11 @@
     </div>
     <div class="stat-card">
         <div class="label">Attendance %</div>
-        <div class="value" style="color: {% if stats.percentage >= 75 %}#16a34a{% else %}#ef4444{% endif %};">{{ stats.percentage }}%</div>
+        {% if stats.percentage >= 75 %}
+        <div class="value" style="color: #16a34a;">{{ stats.percentage }}%</div>
+        {% else %}
+        <div class="value" style="color: #ef4444;">{{ stats.percentage }}%</div>
+        {% endif %}
     </div>
 </div>
 
